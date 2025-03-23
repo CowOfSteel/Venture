@@ -1,0 +1,212 @@
+[
+    {
+        "model": "characters.skill",
+        "pk": 1,
+        "fields": {
+            "name": "Administer",
+            "description": "Manage an organization, handle paperwork, analyze records, and keep an institution functioning on a daily basis.",
+            "category": "administrative",
+            "default_modifier": -1
+        }
+    },
+    {
+        "model": "characters.skill",
+        "pk": 2,
+        "fields": {
+            "name": "Connect",
+            "description": "Find people who can be helpful and get them to cooperate with you.",
+            "category": "social",
+            "default_modifier": -1
+        }
+    },
+    {
+        "model": "characters.skill",
+        "pk": 3,
+        "fields": {
+            "name": "Drive",
+            "description": "Drive vehicles, sail ships, fly planes, pilot drones, and perform basic repairs.",
+            "category": "physical",
+            "default_modifier": -1
+        }
+    },
+    {
+        "model": "characters.skill",
+        "pk": 4,
+        "fields": {
+            "name": "Exert",
+            "description": "Apply physical strength and stamina to feats like running, jumping, or climbing.",
+            "category": "physical",
+            "default_modifier": -1
+        }
+    },
+    {
+        "model": "characters.skill",
+        "pk": 5,
+        "fields": {
+            "name": "Fix",
+            "description": "Create and repair devices both simple and complex.",
+            "category": "technical",
+            "default_modifier": -1
+        }
+    },
+    {
+        "model": "characters.skill",
+        "pk": 6,
+        "fields": {
+            "name": "Heal",
+            "description": "Provide medical or psychological treatment for injuries or illnesses.",
+            "category": "medical",
+            "default_modifier": -1
+        }
+    },
+    {
+        "model": "characters.skill",
+        "pk": 7,
+        "fields": {
+            "name": "Know",
+            "description": "Recall facts about academic or scientific topics and history.",
+            "category": "knowledge",
+            "default_modifier": -1
+        }
+    },
+    {
+        "model": "characters.skill",
+        "pk": 8,
+        "fields": {
+            "name": "Lead",
+            "description": "Inspire and convince others to follow you.",
+            "category": "social",
+            "default_modifier": -1
+        }
+    },
+    {
+        "model": "characters.skill",
+        "pk": 9,
+        "fields": {
+            "name": "Notice",
+            "description": "Spot details and anomalies in your environment.",
+            "category": "perception",
+            "default_modifier": -1
+        }
+    },
+    {
+        "model": "characters.skill",
+        "pk": 10,
+        "fields": {
+            "name": "Perform",
+            "description": "Showcase performance skills such as singing, dancing, or acting.",
+            "category": "artistic",
+            "default_modifier": -1
+        }
+    },
+    {
+        "model": "characters.skill",
+        "pk": 11,
+        "fields": {
+            "name": "Program",
+            "description": "Operate or hack computers and communications equipment.",
+            "category": "technical",
+            "default_modifier": -1
+        }
+    },
+    {
+        "model": "characters.skill",
+        "pk": 12,
+        "fields": {
+            "name": "Punch",
+            "description": "Used in unarmed combat; without training, the modifier is -1.",
+            "category": "combat",
+            "default_modifier": -1
+        }
+    },
+    {
+        "model": "characters.skill",
+        "pk": 13,
+        "fields": {
+            "name": "Shoot",
+            "description": "Used for ranged weapon attacks.",
+            "category": "combat",
+            "default_modifier": -1
+        }
+    },
+    {
+        "model": "characters.skill",
+        "pk": 14,
+        "fields": {
+            "name": "Sneak",
+            "description": "Move silently and remain unseen.",
+            "category": "stealth",
+            "default_modifier": -1
+        }
+    },
+    {
+        "model": "characters.skill",
+        "pk": 15,
+        "fields": {
+            "name": "Stab",
+            "description": "Used for melee attacks with bladed weapons.",
+            "category": "combat",
+            "default_modifier": -1
+        }
+    },
+    {
+        "model": "characters.skill",
+        "pk": 16,
+        "fields": {
+            "name": "Survive",
+            "description": "Use street smarts or wilderness skills to stay alive.",
+            "category": "survival",
+            "default_modifier": -1
+        }
+    },
+    {
+        "model": "characters.skill",
+        "pk": 17,
+        "fields": {
+            "name": "Talk",
+            "description": "Persuade, charm, or deceive others through conversation.",
+            "category": "social",
+            "default_modifier": -1
+        }
+    },
+    {
+        "model": "characters.skill",
+        "pk": 18,
+        "fields": {
+            "name": "Trade",
+            "description": "Negotiate, buy, or sell goods and services.",
+            "category": "economic",
+            "default_modifier": -1
+        }
+    },
+    {
+        "model": "characters.skill",
+        "pk": 19,
+        "fields": {
+            "name": "Work",
+            "description": "Apply your skills in a specific profession or trade.",
+            "category": "labor",
+            "default_modifier": -1
+        }
+    },
+    {
+        "model": "characters.skill",
+        "pk": 20,
+        "fields": {
+            "name": "Cast",
+            "description": "Cast spells (for magic-enabled campaigns).",
+            "category": "magical",
+            "default_modifier": -1
+        }
+    },
+    {
+        "model": "characters.skill",
+        "pk": 21,
+        "fields": {
+            "name": "Summon",
+            "description": "Summon spirits or supernatural allies (for magic-enabled campaigns).",
+            "category": "magical",
+            "default_modifier": -1
+        }
+    }
+]

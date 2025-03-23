@@ -44,37 +44,55 @@
 
 ----- .\client\src\App.js -----
 
-// src/App.js
+// ./client/src/App.js
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider } from './contexts/AuthContext';
+import Home from './components/Home';
 import CharacterList from './components/CharacterList';
 import CharacterForm from './components/CharacterForm';
 import Login from './components/Login';
-
-function handleLogout() {
-  localStorage.removeItem('accessToken');
-  localStorage.removeItem('refreshToken');
-  // Possibly navigate back to the login page:
-  window.location = '/login';
-}
+import Register from './components/Register';
+import Welcome from './components/Welcome';
+import Layout from './components/Layout';
+import ProtectedRoute from './components/ProtectedRoute';
+import ViewCharacter from './components/ViewCharacter';
+import AttributeCreationWrapper from './components/AttributeCreationWrapper';
+import AttributeCreationStarter from './components/AttributeCreationStarter';
+import NewCharacterChoice from './components/NewCharacterChoice';
 
 function App() {
   return (
-    <Router>
-        <nav>
-            <Link to="/">Characters</Link> |{' '}
-            <Link to="/new">New Character</Link> |{' '}
-            <Link to="/login">Login</Link> |{' '}
-            <Link to="/register">Register</Link>
-            <button onClick={handleLogout}>Logout</button>
-        </nav>
+    <AuthProvider>
+      <Router>
         <Routes>
-            <Route path="/" element={<CharacterList/>}/>
-            <Route path="/new" element={<CharacterForm/>}/>
-            <Route path="/login" element={<Login/>}/> {/* <-- new route */}
+          {/* All pages share the Layout */}
+          <Route element={<Layout />}>
+            {/* Protected routes */}
+            <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
+            <Route path="/characters" element={<ProtectedRoute><CharacterList /></ProtectedRoute>} />
+            <Route path="/new" element={<ProtectedRoute><NewCharacterChoice /></ProtectedRoute>} />
+            <Route path="/new/manual" element={<ProtectedRoute><CharacterForm /></ProtectedRoute>} />
+            <Route path="/new/discover" element={<ProtectedRoute><AttributeCreationStarter /></ProtectedRoute>} />
+            <Route path="/characters/:id/attributes" element={<ProtectedRoute><AttributeCreationWrapper /></ProtectedRoute>} />
+            <Route path="/characters/:id/backgrounds" element={<ProtectedRoute>
+              <div className="card"><h2>Background Selection (Coming Soon)</h2></div>
+            </ProtectedRoute>} />
+
+            {/* Moved this route correctly inside the Layout */}
+            <Route path="/characters/:id" element={<ProtectedRoute><ViewCharacter /></ProtectedRoute>} />
+
+            {/* Public routes */}
+            <Route path="/welcome" element={<Welcome />} />
+            <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
-      </Routes>
-    </Router>
+
+            {/* Catch-all redirect */}
+            <Route path="*" element={<ProtectedRoute><Navigate to="/home" replace /></ProtectedRoute>} />
+          </Route>
+        </Routes>
+      </Router>
+    </AuthProvider>
   );
 }
 
@@ -93,8 +111,84 @@ test('renders learn react link', () => {
 });
 
 
+----- .\client\src\dark-theme.css -----
+
+/* dark-theme.css */
+
+body {
+  background-color: #121212;
+  color: #e0e0e0;
+  font-family: 'Roboto', 'Rajdhani', sans-serif;
+}
+
+nav {
+  background-color: rgba(255,255,255,0.05);
+  padding: 10px;
+  border-bottom: 1px solid #0fffc1;
+}
+
+nav a,
+nav button {
+  color: #0fffc1;
+  text-decoration: none;
+  font-weight: bold;
+  margin-right: 10px;
+  transition: 0.3s ease;
+}
+
+nav a:hover,
+nav button:hover {
+  color: #ff2079;
+  text-shadow: 0 0 5px #ff2079, 0 0 10px #ff2079;
+}
+
+button,
+input {
+  background-color: rgba(255,255,255,0.1);
+  border: 1px solid #0fffc1;
+  border-radius: 6px;
+  padding: 8px 12px;
+  color: #e0e0e0;
+  outline: none;
+  transition: box-shadow 0.2s ease;
+}
+
+button:hover,
+input:focus {
+  box-shadow: 0 0 10px #0fffc1, inset 0 0 5px #0fffc1;
+}
+
+form div {
+  margin-bottom: 15px;
+}
+
+input[type="number"],
+input[type="text"],
+input[type="password"],
+input[type="email"] {
+  width: 100%;
+}
+
+.card {
+  background-color: rgba(255,255,255,0.05);
+  padding: 20px;
+  border-radius: 6px;
+  box-shadow: 0 0 5px rgba(0,0,0,0.6);
+  margin-bottom: 20px;
+}
+
+.error {
+  color: #f7ff00;
+}
+
+.success {
+  color: #0fffc1;
+}
+
+
 ----- .\client\src\index.css -----
 
+/* index.css */
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
@@ -114,9 +208,10 @@ code {
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import './index.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
+import './index.css';
+import './dark-theme.css';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
@@ -129,7 +224,6 @@ root.render(
 // to log results (for example: reportWebVitals(console.log))
 // or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
 reportWebVitals();
-
 
 ----- .\client\src\reportWebVitals.js -----
 
@@ -157,6 +251,246 @@ export default reportWebVitals;
 import '@testing-library/jest-dom';
 
 
+----- .\client\src\components\AttributeCreation.js -----
+
+import React, { useState, useEffect } from 'react';
+import axios from '../services/api';
+import { useNavigate } from 'react-router-dom';
+
+const ATTRIBUTE_NAMES = ["strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma"];
+const MANUAL_OPTIONS = [14, 12, 11, 10, 9, 7];
+
+const roll3d6 = () => {
+  let total = 0;
+  for (let i = 0; i < 3; i++) {
+    total += Math.floor(Math.random() * 6) + 1;
+  }
+  return total;
+};
+
+const AttributeCreation = ({ characterId }) => {
+  const [mode, setMode] = useState("random"); // "random" or "manual"
+  const [attributes, setAttributes] = useState({
+    strength: 10,
+    dexterity: 10,
+    constitution: 10,
+    intelligence: 10,
+    wisdom: 10,
+    charisma: 10
+  });
+  const [manualAttributes, setManualAttributes] = useState({
+    strength: null,
+    dexterity: null,
+    constitution: null,
+    intelligence: null,
+    wisdom: null,
+    charisma: null
+  });
+  const [error, setError] = useState(null);
+  const navigate = useNavigate();
+
+  // When switching to manual mode, reset manual attributes to null.
+  useEffect(() => {
+    if (mode === "manual") {
+      setManualAttributes({
+        strength: null,
+        dexterity: null,
+        constitution: null,
+        intelligence: null,
+        wisdom: null,
+        charisma: null
+      });
+    }
+  }, [mode]);
+
+  // Handler for random roll button
+  const handleRoll = () => {
+    const newAttributes = {};
+    ATTRIBUTE_NAMES.forEach(attr => {
+      newAttributes[attr] = roll3d6();
+    });
+    setAttributes(newAttributes);
+  };
+
+  // Handler for manual assignment changes.
+  // 'value' is converted to a number; if empty, we store null.
+  const handleManualChange = (attr, value) => {
+    setManualAttributes(prev => ({
+      ...prev,
+      [attr]: value === "" ? null : parseInt(value, 10)
+    }));
+  };
+
+  // Function to get available options for a given attribute.
+  // It returns options not already selected by other fields,
+  // while preserving the already-selected value (if any).
+  const getAvailableOptions = (currentAttr) => {
+    const usedValues = ATTRIBUTE_NAMES.filter(a => a !== currentAttr)
+      .map(a => manualAttributes[a])
+      .filter(v => v !== null);
+    return MANUAL_OPTIONS.filter(option =>
+      !usedValues.includes(option) || option === manualAttributes[currentAttr]
+    );
+  };
+
+  // Handler to confirm the current attribute selections.
+  const handleConfirm = async () => {
+    if (mode === "manual") {
+      // Ensure every attribute has a selection.
+      for (let attr of ATTRIBUTE_NAMES) {
+        if (manualAttributes[attr] === null) {
+          setError("Please select a value for every attribute.");
+          return;
+        }
+      }
+      // Merge manual values into attributes.
+      setAttributes(manualAttributes);
+      setError(null);
+      try {
+        await axios.patch(`/characters/${characterId}/`, {
+          ...manualAttributes,
+          creation_data: { step: "attributes" }
+        });
+        navigate(`/characters/${characterId}/backgrounds`);
+      } catch (err) {
+        console.error("Error updating attributes:", err);
+      }
+    } else {
+      // For random mode, attributes are already set.
+      try {
+        await axios.patch(`/characters/${characterId}/`, {
+          ...attributes,
+          creation_data: { step: "attributes" }
+        });
+        navigate(`/characters/${characterId}/backgrounds`);
+      } catch (err) {
+        console.error("Error updating attributes:", err);
+      }
+    }
+  };
+
+  return (
+    <div className="card">
+      <h2>Character Creation: Attributes</h2>
+      <div>
+        <label>
+          <input
+            type="radio"
+            value="random"
+            checked={mode === "random"}
+            onChange={() => setMode("random")}
+          />
+          Roll Attributes Randomly
+        </label>
+        <label style={{ marginLeft: '20px' }}>
+          <input
+            type="radio"
+            value="manual"
+            checked={mode === "manual"}
+            onChange={() => setMode("manual")}
+          />
+          Assign Manually
+        </label>
+      </div>
+
+      {mode === "random" && (
+        <div>
+          <button onClick={handleRoll}>Roll Attributes</button>
+          <div style={{ marginTop: '10px' }}>
+            {ATTRIBUTE_NAMES.map(attr => (
+              <div key={attr}>
+                <strong>{attr.charAt(0).toUpperCase() + attr.slice(1)}:</strong> {attributes[attr]}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {mode === "manual" && (
+        <div>
+          {ATTRIBUTE_NAMES.map(attr => (
+            <div key={attr} style={{ marginBottom: '10px' }}>
+              <label>
+                {attr.charAt(0).toUpperCase() + attr.slice(1)}:
+                <select
+                  value={manualAttributes[attr] !== null ? manualAttributes[attr] : ""}
+                  onChange={(e) => handleManualChange(attr, e.target.value)}
+                  style={{ marginLeft: '10px' }}
+                >
+                  <option value="">Select a value</option>
+                  {getAvailableOptions(attr).map(option => (
+                    <option key={option} value={option}>{option}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {error && <div style={{ color: 'red', marginTop: '10px' }}>{error}</div>}
+
+      <div style={{ marginTop: '20px' }}>
+        <button onClick={handleConfirm}>Confirm Attributes</button>
+      </div>
+    </div>
+  );
+};
+
+export default AttributeCreation;
+
+
+----- .\client\src\components\AttributeCreationStarter.js -----
+
+import React, { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import api from '../services/api';
+
+const AttributeCreationStarter = () => {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const createInProgressCharacter = async () => {
+      try {
+        const response = await api.post('/characters/', {
+          name: "Unnamed Character",
+          is_complete: false,
+          creation_data: { step: "attributes" }
+        });
+        const newCharacterId = response.data.id;
+        navigate(`/characters/${newCharacterId}/attributes`);
+      } catch (error) {
+        console.error("Failed to create new character:", error);
+      }
+    };
+
+    createInProgressCharacter();
+  }, [navigate]);
+
+  return (
+    <div className="card">
+      <p>Starting your new character...</p>
+    </div>
+  );
+};
+
+export default AttributeCreationStarter;
+
+
+----- .\client\src\components\AttributeCreationWrapper.js -----
+
+import React from 'react';
+import { useParams } from 'react-router-dom';
+import AttributeCreation from './AttributeCreation';
+
+const AttributeCreationWrapper = () => {
+  const { id } = useParams();
+  return <AttributeCreation characterId={id} />;
+};
+
+export default AttributeCreationWrapper;
+
+
 ----- .\client\src\components\CharacterForm.js -----
 
 // src/components/CharacterForm.js
@@ -164,33 +498,55 @@ import React, { useState } from 'react';
 import api from '../services/api';
 
 const CharacterForm = () => {
-  const [name, setName] = useState('');
+  // Rename 'name' to 'characterName' to avoid conflict with global 'name'
+  const [characterName, setCharacterName] = useState('');
   const [strength, setStrength] = useState(10);
   const [dexterity, setDexterity] = useState(10);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
 
+  // Moved inside the component so we can access characterName, strength, and dexterity.
+  const validateForm = () => {
+    let errors = {};
+    if (!characterName.trim()) {
+      errors.characterName = 'Name is required.';
+    }
+    // Ensure strength and dexterity are valid numbers.
+    const strValue = parseInt(strength, 10);
+    const dexValue = parseInt(dexterity, 10);
+    if (isNaN(strValue) || strValue < 1) {
+      errors.strength = 'Strength must be a valid number.';
+    }
+    if (isNaN(dexValue) || dexValue < 1) {
+      errors.dexterity = 'Dexterity must be a valid number.';
+    }
+    return errors;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
-    setSuccess(null);
+
+    const validationErrors = validateForm();
+    if (Object.keys(validationErrors).length > 0) {
+      // Combine errors and set error state.
+      setError(Object.values(validationErrors).join(' '));
+      return;
+    }
+
     try {
       await api.post('/characters/', {
-        name,
-        strength,
-        dexterity,
+        name: characterName,
+        strength: parseInt(strength, 10),
+        dexterity: parseInt(dexterity, 10),
       });
-      console.log('Character created:', { name, strength, dexterity });
+      console.log('Character created:', { characterName, strength, dexterity });
       setSuccess('Character created successfully!');
-      // Optionally clear the form:
-      setName('');
+      setCharacterName('');
       setStrength(10);
       setDexterity(10);
     } catch (err) {
       console.error('Error creating character:', err);
-      if (err.response) {
-        console.error('Error response:', err.response.data);
-      }
       setError(err.message || 'An error occurred');
     }
   };
@@ -203,8 +559,8 @@ const CharacterForm = () => {
         <label>Name</label>
         <input
           type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
+          value={characterName}
+          onChange={(e) => setCharacterName(e.target.value)}
         />
       </div>
 
@@ -239,6 +595,7 @@ export default CharacterForm;
 // src/components/CharacterList.js
 import React, { useEffect, useState } from 'react';
 import api from '../services/api';
+import { Link } from 'react-router-dom';
 
 const CharacterList = () => {
   console.log("CharacterList is mounting!");
@@ -269,19 +626,19 @@ const CharacterList = () => {
   };
 
   if (loading) {
-    return <div>Loading characters...</div>;
+    return <div className="card">Loading characters...</div>;
   }
 
   if (error) {
     return (
-      <div style={{ color: 'red' }}>
+      <div className="card" style={{ color: 'red' }}>
         Error fetching characters: {error.message || 'Unknown error'}
       </div>
     );
   }
 
   return (
-    <div>
+    <div className="card">
       <h2>Your Characters</h2>
       {characters.length === 0 ? (
         <div>No characters found. Try creating one.</div>
@@ -289,7 +646,9 @@ const CharacterList = () => {
         <ul>
           {characters.map((char) => (
             <li key={char.id}>
-              {char.name} - STR: {char.strength}, DEX: {char.dexterity}
+              <Link to={`/characters/${char.id}`}>
+                {char.name} - STR: {char.strength}, DEX: {char.dexterity}
+              </Link>
             </li>
           ))}
         </ul>
@@ -301,33 +660,142 @@ const CharacterList = () => {
 export default CharacterList;
 
 
+----- .\client\src\components\Home.js -----
+
+import React from 'react';
+
+const Home = () => {
+  return (
+    <div className="card">
+      <h2>Welcome Home!</h2>
+      <p>
+        This is your dashboard. More features (blog posts, campaign updates, etc.) will appear here soon.
+      </p>
+    </div>
+  );
+};
+
+export default Home;
+
+
+----- .\client\src\components\Layout.js -----
+
+import React, { useContext } from 'react';
+import { Outlet, Link } from 'react-router-dom';
+import styled, { ThemeProvider } from 'styled-components';
+import { AuthContext } from '../contexts/AuthContext';
+
+// Define your theme colors (you can adjust these to match your cyberpunk aesthetic)
+const theme = {
+  primary: '#0fffc1', // bright cyan accent
+  background: '#282c34', // dark background
+  text: '#ffffff', // white text
+  hover: '#ff2079', // a hot pink for hover effects
+};
+
+// Create styled components for the navigation bar
+const NavBar = styled.nav`
+  background-color: ${props => props.theme.background};
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+`;
+
+const NavLink = styled(Link)`
+  color: ${props => props.theme.primary};
+  margin: 0 10px;
+  text-decoration: none;
+  font-weight: bold;
+  transition: color 0.3s ease;
+
+  &:hover {
+    color: ${props => props.theme.hover};
+  }
+`;
+
+const LogoutButton = styled.button`
+  background: none;
+  border: none;
+  color: ${props => props.theme.primary};
+  font-weight: bold;
+  cursor: pointer;
+  transition: color 0.3s ease;
+  margin: 0 10px;
+
+  &:hover {
+    color: ${props => props.theme.hover};
+  }
+`;
+
+const LayoutContainer = styled.div`
+  min-height: 100vh;
+  background-color: ${props => props.theme.background};
+  color: ${props => props.theme.text};
+`;
+
+const Layout = () => {
+  const { token, handleLogout } = useContext(AuthContext);
+
+  return (
+    <ThemeProvider theme={theme}>
+      <LayoutContainer>
+        <NavBar>
+          {token ? (
+            <>
+              <NavLink to="/home">Home</NavLink>
+              <NavLink to="/characters">Characters</NavLink>
+              <NavLink to="/new">New Character</NavLink>
+              <LogoutButton onClick={handleLogout}>Logout</LogoutButton>
+            </>
+          ) : (
+            <>
+              <NavLink to="/welcome">Welcome</NavLink>
+              <NavLink to="/login">Login</NavLink>
+              <NavLink to="/register">Register</NavLink>
+            </>
+          )}
+        </NavBar>
+        <Outlet />
+      </LayoutContainer>
+    </ThemeProvider>
+  );
+};
+
+export default Layout;
+
+
 ----- .\client\src\components\Login.js -----
 
-import React, { useState } from 'react';
+// src/components/Login.js
+import React, { useState, useContext } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
+import { AuthContext } from '../contexts/AuthContext';
 
-function Login() {
+function Login({ setToken }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState(null);
+  const { handleLogin } = useContext(AuthContext);
+  const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
 
-    try {
-      // Hit the DRF JWT login endpoint
-      const response = await api.post('/token/', { username, password });
-      // The tokens come back in response.data.access and response.data.refresh
-      const { access, refresh } = response.data;
+    if (!username.trim() || !password.trim()) {
+      setError('Both username and password are required.');
+      return;
+    }
 
-      // Store these tokens in localStorage or wherever you prefer
+    try {
+      const response = await api.post('/token/', { username, password });
+      const { access, refresh } = response.data;
       localStorage.setItem('accessToken', access);
       localStorage.setItem('refreshToken', refresh);
-
-      // Now, navigate away or show a success message
-      alert('Logged in successfully!');
-      // e.g., window.location = '/' or some other route
+      handleLogin(access);
+      navigate('/home');
     } catch (err) {
       console.error('Login error:', err);
       setError('Invalid username/password');
@@ -364,10 +832,57 @@ function Login() {
 export default Login;
 
 
+----- .\client\src\components\NewCharacterChoice.js -----
+
+import React from 'react';
+import { Link } from 'react-router-dom';
+
+const NewCharacterChoice = () => {
+  return (
+    <div className="card">
+      <h2>Create a New Character</h2>
+      <p>Choose how you'd like to create your character:</p>
+
+      <div style={{ marginTop: '20px' }}>
+        <Link to="/new/discover" style={{ marginRight: '20px' }}>
+          <button>Discover a New Character</button>
+        </Link>
+
+        <Link to="/new/manual">
+          <button>Describe an Existing Character</button>
+        </Link>
+      </div>
+    </div>
+  );
+};
+
+export default NewCharacterChoice;
+
+
+----- .\client\src\components\ProtectedRoute.js -----
+
+// ./client/src/components/ProtectedRoute.js
+
+import React, { useContext } from 'react';
+import { Navigate } from 'react-router-dom';
+import { AuthContext } from '../contexts/AuthContext';
+
+const ProtectedRoute = ({ children }) => {
+  const { token } = useContext(AuthContext);
+
+  if (!token) {
+    return <Navigate to="/welcome" replace />;
+  }
+  return children;
+};
+
+export default ProtectedRoute;
+
+
 ----- .\client\src\components\Register.js -----
 
-// src/components/Register.js
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 
 function Register() {
@@ -376,25 +891,46 @@ function Register() {
   const [email, setEmail] = useState('');
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
+  const navigate = useNavigate();
+
+  const validateRegister = () => {
+    let errors = {};
+
+    if (!username.trim()) {
+      errors.username = 'Username is required.';
+    }
+    if (!password.trim()) {
+      errors.password = 'Password is required.';
+    }
+    if (!email.trim()) {
+      errors.email = 'Email is required.';
+    } else {
+      // Simple email regex check
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        errors.email = 'Email format is invalid.';
+      }
+    }
+    return errors;
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
     setSuccess(null);
 
+    const validationErrors = validateRegister();
+    if (Object.keys(validationErrors).length > 0) {
+      setError(Object.values(validationErrors).join(' '));
+      return;
+    }
+
     try {
-      await api.post('/register/', {
-        username,
-        password,
-        email
-      });
-      setSuccess('User registered successfully!');
-      // Clear the form
-      setUsername('');
-      setPassword('');
-      setEmail('');
+      await api.post('/register/', { username, password, email });
+      // Redirect to the Home page after successful registration
+      navigate('/home');
     } catch (err) {
-      console.error(err);
+      console.error('Registration error:', err.response.data);
       setError('Registration failed.');
     }
   };
@@ -438,6 +974,140 @@ function Register() {
 export default Register;
 
 
+----- .\client\src\components\ViewCharacter.js -----
+
+import React, { useEffect, useState } from 'react';
+import { useParams } from 'react-router-dom';
+import api from '../services/api';
+
+const ViewCharacter = () => {
+  const { id } = useParams();
+  const [character, setCharacter] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchCharacter = async () => {
+      try {
+        const response = await api.get(`/characters/${id}/`);
+        setCharacter(response.data);
+      } catch (err) {
+        console.error('Error fetching character:', err);
+        setError('Could not fetch character.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCharacter();
+  }, [id]);
+
+  if (loading) return <div>Loading character details...</div>;
+  if (error) return <div style={{ color: 'red' }}>{error}</div>;
+
+  return (
+    <div className="card">
+      <h2>{character.name}</h2>
+      <ul>
+        <li>Strength: {character.strength}</li>
+        <li>Dexterity: {character.dexterity}</li>
+        <li>Constitution: {character.constitution}</li>
+        <li>Intelligence: {character.intelligence}</li>
+        <li>Wisdom: {character.wisdom}</li>
+        <li>Charisma: {character.charisma}</li>
+      </ul>
+      <small>
+        Created: {new Date(character.created_at).toLocaleString()}
+      </small>
+    </div>
+  );
+};
+
+export default ViewCharacter;
+
+
+----- .\client\src\components\Welcome.js -----
+
+import React from 'react';
+import { Link } from 'react-router-dom';
+
+const Welcome = () => {
+  return (
+    <div className="card">
+      <h2>Welcome to [Your App Name]</h2>
+      <p>
+        Discover a platform where you can manage your characters, follow campaign updates, and read blog posts about our adventures.
+      </p>
+      <p>
+        Please <Link to="/login">log in</Link> or <Link to="/register">register</Link> to get started.
+      </p>
+    </div>
+  );
+};
+
+export default Welcome;
+
+
+----- .\client\src\contexts\AuthContext.js -----
+
+// ./client/src/contexts/AuthContext.js
+
+import React, { createContext, useState } from 'react';
+
+export const AuthContext = createContext();
+
+export const AuthProvider = ({ children }) => {
+  const [token, setToken] = useState(localStorage.getItem('accessToken'));
+
+  const handleLogin = (newToken) => {
+    localStorage.setItem('accessToken', newToken);
+    setToken(newToken);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+    setToken(null);
+    window.location.href = '/welcome';
+  };
+
+  return (
+    <AuthContext.Provider value={{ token, setToken, handleLogin, handleLogout }}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
+
+
+----- .\client\src\hooks\useUserRoles.js -----
+
+// client/src/hooks/useUserRoles.js
+
+import { useState, useEffect } from 'react';
+import axios from 'axios';
+
+const useUserRoles = () => {
+  const [roles, setRoles] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    axios.get('/api/user_roles/')
+      .then(res => {
+        setRoles(res.data.roles);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error("Error fetching user roles:", err);
+        setLoading(false);
+      });
+  }, []);
+
+  return { roles, loading };
+};
+
+export default useUserRoles;
+
+
 ----- .\client\src\services\api.js -----
 
 // src/services/api.js
@@ -445,9 +1115,10 @@ import axios from 'axios';
 
 const api = axios.create({
   baseURL: 'http://127.0.0.1:8000/api/',
-  withCredentials: true, // or false if you're not using session-based auth
+  withCredentials: true,
 });
 
+// Request interceptor to attach the access token
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('accessToken');
@@ -456,10 +1127,46 @@ api.interceptors.request.use(
     }
     return config;
   },
-  (error) => {
+  (error) => Promise.reject(error)
+);
+
+// Response interceptor to refresh JWT token proactively
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+
+    // Check if error response is 401 (unauthorized) and retry flag is not set
+    if (error.response && error.response.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      try {
+        // Get the refresh token from localStorage
+        const refreshToken = localStorage.getItem('refreshToken');
+        if (refreshToken) {
+          // Make a call to the refresh endpoint using a separate axios instance to avoid interceptors
+          const { data } = await axios.post(
+            'http://127.0.0.1:8000/api/token/refresh/',
+            { refresh: refreshToken }
+          );
+          // Update localStorage with the new access token
+          localStorage.setItem('accessToken', data.access);
+          // Update the original request's authorization header
+          originalRequest.headers.Authorization = `Bearer ${data.access}`;
+          // Retry the original request with the new token
+          return api(originalRequest);
+        }
+      } catch (refreshError) {
+        // Optionally, clear tokens and redirect to login if refresh fails
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        window.location = '/login';
+        return Promise.reject(refreshError);
+      }
+    }
     return Promise.reject(error);
   }
 );
+
 export default api;
 
 
@@ -510,38 +1217,121 @@ class CharactersConfig(AppConfig):
 
 from django.db import models
 from django.contrib.auth.models import User
+from django.db.models import JSONField
+
+# Background, Archetype, and Skill models will be expanded later.
+class Background(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    description = models.TextField(blank=True)
+    free_skill = models.CharField(max_length=50)
+    is_default = models.BooleanField(default=False)
+    version = models.CharField(max_length=20, default="1.0.0")
+    growth_table = JSONField(blank=True, null=True)
+    learning_table = JSONField(blank=True, null=True)
+    manual_table = JSONField(blank=True, null=True)
+
+    def __str__(self):
+        return self.name
+
+class Archetype(models.Model):
+    # This will eventually combine the concepts of Edges and Classes.
+    name = models.CharField(max_length=100, unique=True)
+    description = models.TextField(blank=True)
+    # Additional fields (prerequisites, bonuses, etc.) can be added later.
+
+    def __str__(self):
+        return self.name
+
+class Skill(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    description = models.TextField(blank=True)
+    category = models.CharField(max_length=50, blank=True)  # e.g., combat, technical, social
+    # Every skill starts with no bonus, so default modifier is -1.
+    default_modifier = models.IntegerField(default=-1)
+
+    def __str__(self):
+        return self.name
 
 class Character(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='characters')
     name = models.CharField(max_length=100)
+    goal = models.CharField(max_length=255, blank=True)  # Final narrative goal
 
-    # Classic OSR stats
-    strength = models.IntegerField(default=10)
-    dexterity = models.IntegerField(default=10)
-    constitution = models.IntegerField(default=10)
-    intelligence = models.IntegerField(default=10)
-    wisdom = models.IntegerField(default=10)
-    charisma = models.IntegerField(default=10)
+    # Basic Attributes
+    strength = models.PositiveIntegerField(default=10)
+    dexterity = models.PositiveIntegerField(default=10)
+    constitution = models.PositiveIntegerField(default=10)
+    intelligence = models.PositiveIntegerField(default=10)
+    wisdom = models.PositiveIntegerField(default=10)
+    charisma = models.PositiveIntegerField(default=10)
 
-    # For now, keep it minimal
+    # Flag to determine if character creation is complete.
+    is_complete = models.BooleanField(default=False)
+    # Field to store in-progress creation data (for returning to the wizard).
+    creation_data = JSONField(blank=True, null=True)
+
+    # Relationships with other character-creation components.
+    background = models.ForeignKey(Background, on_delete=models.SET_NULL,
+                                   null=True, blank=True, related_name='characters')
+    archetypes = models.ManyToManyField(Archetype, blank=True, related_name='characters')
+    skills = models.ManyToManyField(Skill, through='CharacterSkill', blank=True, related_name='characters')
+    # Future models: Contacts, Cyberware, Vehicles, Items, etc.
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.name} (owned by {self.user.username})"
+        return f"{self.name} ({self.user.username})"
+
+class CharacterSkill(models.Model):
+    character = models.ForeignKey(Character, on_delete=models.CASCADE)
+    skill = models.ForeignKey(Skill, on_delete=models.CASCADE)
+    # 'level' represents the invested points.
+    # A character with no investment (no record) is treated as -1 by default.
+    # When a record exists with level=0, that is considered "Skill: Level-0" (effective modifier 0),
+    # level=1 means "Skill: Level-1" (effective modifier +1), etc.
+    level = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        unique_together = ('character', 'skill')
+
+    def __str__(self):
+        return f"{self.character.name} - {self.skill.name} (Level {self.level})"
+
+    @property
+    def effective_modifier(self):
+        # If a CharacterSkill record exists, its effective modifier is simply the stored level.
+        return self.level
+
 
 
 ----- .\server\characters\serializers.py -----
 
 from rest_framework import serializers
-from .models import Character
+from .models import Character, CharacterSkill, Skill
+
+
+class CharacterSkillSerializer(serializers.ModelSerializer):
+    effective_modifier = serializers.IntegerField(source='effective_modifier', read_only=True)
+
+    class Meta:
+        model = CharacterSkill
+        fields = ['skill', 'level', 'effective_modifier']
+
 
 class CharacterSerializer(serializers.ModelSerializer):
+    # Here we include the character’s skills (via the join table).
+    skills = CharacterSkillSerializer(source='characterskill_set', many=True, read_only=True)
+
     class Meta:
         model = Character
         fields = '__all__'
         read_only_fields = ['user', 'created_at', 'updated_at']
 
+class SkillSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Skill
+        fields = '__all__'
 
 ----- .\server\characters\tests.py -----
 
@@ -555,7 +1345,14 @@ from django.test import TestCase
 from rest_framework import viewsets, permissions
 from .models import Character
 from .serializers import CharacterSerializer
+from .models import Skill
+from .serializers import SkillSerializer
 
+
+class SkillViewSet(viewsets.ModelViewSet):
+    queryset = Skill.objects.all()
+    serializer_class = SkillSerializer
+    permission_classes = [permissions.IsAuthenticated]
 
 class CharacterViewSet(viewsets.ModelViewSet):
     queryset = Character.objects.all()
@@ -574,16 +1371,243 @@ class CharacterViewSet(viewsets.ModelViewSet):
 
 
 
+
+
 ----- .\server\characters\__init__.py -----
 
 
 
+----- .\server\fixtures\initial_skills.json -----
+
+[
+    {
+        "model": "characters.skill",
+        "pk": 1,
+        "fields": {
+            "name": "Administer",
+            "description": "Manage an organization, handle paperwork, analyze records, and keep an institution functioning on a daily basis.",
+            "category": "administrative",
+            "default_modifier": -1
+        }
+    },
+    {
+        "model": "characters.skill",
+        "pk": 2,
+        "fields": {
+            "name": "Connect",
+            "description": "Find people who can be helpful and get them to cooperate with you.",
+            "category": "social",
+            "default_modifier": -1
+        }
+    },
+    {
+        "model": "characters.skill",
+        "pk": 3,
+        "fields": {
+            "name": "Drive",
+            "description": "Drive vehicles, sail ships, fly planes, pilot drones, and perform basic repairs.",
+            "category": "physical",
+            "default_modifier": -1
+        }
+    },
+    {
+        "model": "characters.skill",
+        "pk": 4,
+        "fields": {
+            "name": "Exert",
+            "description": "Apply physical strength and stamina to feats like running, jumping, or climbing.",
+            "category": "physical",
+            "default_modifier": -1
+        }
+    },
+    {
+        "model": "characters.skill",
+        "pk": 5,
+        "fields": {
+            "name": "Fix",
+            "description": "Create and repair devices both simple and complex.",
+            "category": "technical",
+            "default_modifier": -1
+        }
+    },
+    {
+        "model": "characters.skill",
+        "pk": 6,
+        "fields": {
+            "name": "Heal",
+            "description": "Provide medical or psychological treatment for injuries or illnesses.",
+            "category": "medical",
+            "default_modifier": -1
+        }
+    },
+    {
+        "model": "characters.skill",
+        "pk": 7,
+        "fields": {
+            "name": "Know",
+            "description": "Recall facts about academic or scientific topics and history.",
+            "category": "knowledge",
+            "default_modifier": -1
+        }
+    },
+    {
+        "model": "characters.skill",
+        "pk": 8,
+        "fields": {
+            "name": "Lead",
+            "description": "Inspire and convince others to follow you.",
+            "category": "social",
+            "default_modifier": -1
+        }
+    },
+    {
+        "model": "characters.skill",
+        "pk": 9,
+        "fields": {
+            "name": "Notice",
+            "description": "Spot details and anomalies in your environment.",
+            "category": "perception",
+            "default_modifier": -1
+        }
+    },
+    {
+        "model": "characters.skill",
+        "pk": 10,
+        "fields": {
+            "name": "Perform",
+            "description": "Showcase performance skills such as singing, dancing, or acting.",
+            "category": "artistic",
+            "default_modifier": -1
+        }
+    },
+    {
+        "model": "characters.skill",
+        "pk": 11,
+        "fields": {
+            "name": "Program",
+            "description": "Operate or hack computers and communications equipment.",
+            "category": "technical",
+            "default_modifier": -1
+        }
+    },
+    {
+        "model": "characters.skill",
+        "pk": 12,
+        "fields": {
+            "name": "Punch",
+            "description": "Used in unarmed combat; without training, the modifier is -1.",
+            "category": "combat",
+            "default_modifier": -1
+        }
+    },
+    {
+        "model": "characters.skill",
+        "pk": 13,
+        "fields": {
+            "name": "Shoot",
+            "description": "Used for ranged weapon attacks.",
+            "category": "combat",
+            "default_modifier": -1
+        }
+    },
+    {
+        "model": "characters.skill",
+        "pk": 14,
+        "fields": {
+            "name": "Sneak",
+            "description": "Move silently and remain unseen.",
+            "category": "stealth",
+            "default_modifier": -1
+        }
+    },
+    {
+        "model": "characters.skill",
+        "pk": 15,
+        "fields": {
+            "name": "Stab",
+            "description": "Used for melee attacks with bladed weapons.",
+            "category": "combat",
+            "default_modifier": -1
+        }
+    },
+    {
+        "model": "characters.skill",
+        "pk": 16,
+        "fields": {
+            "name": "Survive",
+            "description": "Use street smarts or wilderness skills to stay alive.",
+            "category": "survival",
+            "default_modifier": -1
+        }
+    },
+    {
+        "model": "characters.skill",
+        "pk": 17,
+        "fields": {
+            "name": "Talk",
+            "description": "Persuade, charm, or deceive others through conversation.",
+            "category": "social",
+            "default_modifier": -1
+        }
+    },
+    {
+        "model": "characters.skill",
+        "pk": 18,
+        "fields": {
+            "name": "Trade",
+            "description": "Negotiate, buy, or sell goods and services.",
+            "category": "economic",
+            "default_modifier": -1
+        }
+    },
+    {
+        "model": "characters.skill",
+        "pk": 19,
+        "fields": {
+            "name": "Work",
+            "description": "Apply your skills in a specific profession or trade.",
+            "category": "labor",
+            "default_modifier": -1
+        }
+    },
+    {
+        "model": "characters.skill",
+        "pk": 20,
+        "fields": {
+            "name": "Cast",
+            "description": "Cast spells (for magic-enabled campaigns).",
+            "category": "magical",
+            "default_modifier": -1
+        }
+    },
+    {
+        "model": "characters.skill",
+        "pk": 21,
+        "fields": {
+            "name": "Summon",
+            "description": "Summon spirits or supernatural allies (for magic-enabled campaigns).",
+            "category": "magical",
+            "default_modifier": -1
+        }
+    }
+]
+
 ----- .\server\users\admin.py -----
 
 from django.contrib import admin
+from django.contrib.auth.models import User
+from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 
-# Register your models here.
+class UserAdmin(BaseUserAdmin):
+    list_display = ('username', 'email', 'first_name', 'last_name', 'is_staff', 'get_groups')
 
+    def get_groups(self, obj):
+        return ', '.join([g.name for g in obj.groups.all()])
+    get_groups.short_description = 'Groups'
+
+# Re-register UserAdmin
+admin.site.unregister(User)
+admin.site.register(User, UserAdmin)
 
 ----- .\server\users\apps.py -----
 
@@ -639,7 +1663,16 @@ from django.shortcuts import render
 from rest_framework import viewsets, permissions, generics
 from .serializers import UserSerializer
 from django.contrib.auth.models import User
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
 
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def user_roles(request):
+    roles = request.user.groups.values_list('name', flat=True)
+    return Response({"roles": roles})
 
 # The registration view:
 class UserRegistrationView(generics.CreateAPIView):
@@ -721,6 +1754,7 @@ INSTALLED_APPS = [
 
     # Your apps
     'characters',
+    'users',
 ]
 
 REST_FRAMEWORK = {
@@ -810,6 +1844,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 
 STATIC_URL = 'static/'
+STATICFILES_DIRS = [BASE_DIR / "static"]
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
@@ -827,21 +1862,25 @@ CORS_ALLOW_CREDENTIALS = True
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework import routers
-from characters.views import CharacterViewSet
+from characters.views import CharacterViewSet, SkillViewSet
+from users.views import UserRegistrationView, user_roles  # <-- Import from users app
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
 )
+from users.views import user_roles
 
 router = routers.DefaultRouter()
 router.register(r'characters', CharacterViewSet, basename='characters')
+router.register(r'skills', SkillViewSet, basename='skills')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include(router.urls)),
-    path('api/register/', UserRegistrationView.as_view(), name='register')
+    path('api/register/', UserRegistrationView.as_view(), name='register'),  # <-- Comma added here
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('api/user_roles/', user_roles, name='user_roles'),
 ]
 
 

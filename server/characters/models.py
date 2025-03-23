@@ -1,21 +1,88 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.db.models import JSONField
+
+# Background, Archetype, and Skill models will be expanded later.
+class Background(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    description = models.TextField(blank=True)
+    free_skill = models.CharField(max_length=50)
+    is_default = models.BooleanField(default=False)
+    version = models.CharField(max_length=20, default="1.0.0")
+    growth_table = JSONField(blank=True, null=True)
+    learning_table = JSONField(blank=True, null=True)
+    manual_table = JSONField(blank=True, null=True)
+
+    def __str__(self):
+        return self.name
+
+class Archetype(models.Model):
+    # This will eventually combine the concepts of Edges and Classes.
+    name = models.CharField(max_length=100, unique=True)
+    description = models.TextField(blank=True)
+    # Additional fields (prerequisites, bonuses, etc.) can be added later.
+
+    def __str__(self):
+        return self.name
+
+class Skill(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    description = models.TextField(blank=True)
+    category = models.CharField(max_length=50, blank=True)  # e.g., combat, technical, social
+    # Every skill starts with no bonus, so default modifier is -1.
+    default_modifier = models.IntegerField(default=-1)
+
+    def __str__(self):
+        return self.name
 
 class Character(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='characters')
     name = models.CharField(max_length=100)
+    goal = models.CharField(max_length=255, blank=True)  # Final narrative goal
 
-    # Classic OSR stats
-    strength = models.IntegerField(default=10)
-    dexterity = models.IntegerField(default=10)
-    constitution = models.IntegerField(default=10)
-    intelligence = models.IntegerField(default=10)
-    wisdom = models.IntegerField(default=10)
-    charisma = models.IntegerField(default=10)
+    # Basic Attributes
+    strength = models.PositiveIntegerField(default=10)
+    dexterity = models.PositiveIntegerField(default=10)
+    constitution = models.PositiveIntegerField(default=10)
+    intelligence = models.PositiveIntegerField(default=10)
+    wisdom = models.PositiveIntegerField(default=10)
+    charisma = models.PositiveIntegerField(default=10)
 
-    # For now, keep it minimal
+    # Flag to determine if character creation is complete.
+    is_complete = models.BooleanField(default=False)
+    # Field to store in-progress creation data (for returning to the wizard).
+    creation_data = JSONField(blank=True, null=True)
+
+    # Relationships with other character-creation components.
+    background = models.ForeignKey(Background, on_delete=models.SET_NULL,
+                                   null=True, blank=True, related_name='characters')
+    archetypes = models.ManyToManyField(Archetype, blank=True, related_name='characters')
+    skills = models.ManyToManyField(Skill, through='CharacterSkill', blank=True, related_name='characters')
+    # Future models: Contacts, Cyberware, Vehicles, Items, etc.
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.name} (owned by {self.user.username})"
+        return f"{self.name} ({self.user.username})"
+
+class CharacterSkill(models.Model):
+    character = models.ForeignKey(Character, on_delete=models.CASCADE)
+    skill = models.ForeignKey(Skill, on_delete=models.CASCADE)
+    # 'level' represents the invested points.
+    # A character with no investment (no record) is treated as -1 by default.
+    # When a record exists with level=0, that is considered "Skill: Level-0" (effective modifier 0),
+    # level=1 means "Skill: Level-1" (effective modifier +1), etc.
+    level = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        unique_together = ('character', 'skill')
+
+    def __str__(self):
+        return f"{self.character.name} - {self.skill.name} (Level {self.level})"
+
+    @property
+    def effective_modifier(self):
+        # If a CharacterSkill record exists, its effective modifier is simply the stored level.
+        return self.level
+

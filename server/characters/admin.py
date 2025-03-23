@@ -1,3 +1,6 @@
+# server/characters/admin.py
 from django.contrib import admin
+from .models import Background, Skill
 
-# Register your models here.
+admin.site.register(Background)
+admin.site.register(Skill)
