@@ -310,7 +310,477 @@
         "5": {"type": "SKILL", "name": "administer", "points": 1},
         "6": {"type": "SKILL", "name": "connect", "points": 1},
         "7": {"type": "SKILL", "name": "fix", "points": 1}
+      }}},
+      {
+    "model": "characters.background",
+    "pk": 9,
+    "fields": {
+      "name": "Drone Jockey",
+      "description": "Placeholder.",
+      "free_skill": "drive",
+      "is_default": true,
+      "version": "1.0.0",
+      "growth_table": {
+        "1": {"type": "ATTRIBUTE", "category": "ANY", "points": 1},
+        "2": {"type": "ATTRIBUTE", "category": "PHYSICAL", "points": 2},
+        "3": {"type": "ATTRIBUTE", "category": "PHYSICAL", "points": 2},
+        "4": {"type": "ATTRIBUTE", "category": "MENTAL", "points": 2},
+        "5": {"type": "SKILL", "name": "drive", "points": 1},
+        "6": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "learning_table": {
+        "1": {"type": "SKILL", "name": "drive", "points": 1},
+        "2": {"type": "SKILL", "name": "fix", "points": 1},
+        "3": {"type": "SKILL", "name": "shoot", "points": 1},
+        "4": {"type": "SKILL", "name": "notice", "points": 1},
+        "5": {"type": "SKILL", "name": "sneak", "points": 1},
+        "6": {"type": "SKILL", "name": "exert", "points": 1},
+        "7": {"type": "SKILL", "name": "program", "points": 1},
+        "8": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "manual_table": {
+        "1": {"type": "SKILL", "name": "drive", "points": 1},
+        "2": {"type": "SKILL", "name": "fix", "points": 1},
+        "3": {"type": "SKILL", "name": "shoot", "points": 1},
+        "4": {"type": "SKILL", "name": "notice", "points": 1},
+        "5": {"type": "SKILL", "name": "sneak", "points": 1},
+        "6": {"type": "SKILL", "name": "exert", "points": 1},
+        "7": {"type": "SKILL", "name": "program", "points": 1}
+      }
+    }
+  },
+  {
+    "model": "characters.background",
+    "pk": 10,
+    "fields": {
+      "name": "Ganger",
+      "description": "Placeholder",
+      "free_skill": "any_combat",
+      "is_default": true,
+      "version": "1.0.0",
+      "growth_table": {
+        "1": {"type": "ATTRIBUTE", "category": "ANY", "points": 1},
+        "2": {"type": "ATTRIBUTE", "category": "PHYSICAL", "points": 2},
+        "3": {"type": "ATTRIBUTE", "category": "PHYSICAL", "points": 2},
+        "4": {"type": "ATTRIBUTE", "category": "MENTAL", "points": 2},
+        "5": {"type": "SKILL", "name": "any_combat", "points": 1},
+        "6": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "learning_table": {
+        "1": {"type": "SKILL", "name": "any_combat", "points": 1},
+        "2": {"type": "SKILL", "name": "connect", "points": 1},
+        "3": {"type": "SKILL", "name": "survive", "points": 1},
+        "4": {"type": "SKILL", "name": "notice", "points": 1},
+        "5": {"type": "SKILL", "name": "sneak", "points": 1},
+        "6": {"type": "SKILL", "name": "talk", "points": 1},
+        "7": {"type": "SKILL", "name": "fix", "points": 1},
+        "8": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "manual_table": {
+        "1": {"type": "SKILL", "name": "punch", "points": 1},
+        "2": {"type": "SKILL", "name": "shoot", "points": 1},
+        "3": {"type": "SKILL", "name": "stab", "points": 1},
+        "4": {"type": "SKILL", "name": "connect", "points": 1},
+        "5": {"type": "SKILL", "name": "survive", "points": 1},
+        "6": {"type": "SKILL", "name": "notice", "points": 1},
+        "7": {"type": "SKILL", "name": "sneak", "points": 1},
+        "8": {"type": "SKILL", "name": "talk", "points": 1},
+        "9": {"type": "SKILL", "name": "fix", "points": 1}
+      }
+    }
+  },
+  {
+    "model": "characters.background",
+    "pk": 11,
+    "fields": {
+      "name": "Laborer",
+      "description": "Placeholder.",
+      "free_skill": "exert",
+      "is_default": true,
+      "version": "1.0.0",
+      "growth_table": {
+        "1": {"type": "ATTRIBUTE", "category": "ANY", "points": 1},
+        "2": {"type": "ATTRIBUTE", "category": "PHYSICAL", "points": 2},
+        "3": {"type": "ATTRIBUTE", "category": "PHYSICAL", "points": 2},
+        "4": {"type": "ATTRIBUTE", "category": "PHYSICAL", "points": 2},
+        "5": {"type": "SKILL", "name": "exert", "points": 1},
+        "6": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "learning_table": {
+        "1": {"type": "SKILL", "name": "exert", "points": 1},
+        "2": {"type": "SKILL", "name": "work", "points": 1},
+        "3": {"type": "SKILL", "name": "sneak", "points": 1},
+        "4": {"type": "SKILL", "name": "trade", "points": 1},
+        "5": {"type": "SKILL", "name": "survive", "points": 1},
+        "6": {"type": "SKILL", "name": "fix", "points": 1},
+        "7": {"type": "SKILL", "name": "any_combat", "points": 1},
+        "8": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "manual_table": {
+        "1": {"type": "SKILL", "name": "punch", "points": 1},
+        "2": {"type": "SKILL", "name": "shoot", "points": 1},
+        "3": {"type": "SKILL", "name": "stab", "points": 1},
+        "4": {"type": "SKILL", "name": "exert", "points": 1},
+        "5": {"type": "SKILL", "name": "work", "points": 1},
+        "6": {"type": "SKILL", "name": "sneak", "points": 1},
+        "7": {"type": "SKILL", "name": "trade", "points": 1},
+        "8": {"type": "SKILL", "name": "survive", "points": 1},
+        "9": {"type": "SKILL", "name": "fix", "points": 1}
+      }
+    }
+  },
+  {
+    "model": "characters.background",
+    "pk": 12,
+    "fields": {
+      "name": "Law Enforcement",
+      "description": "Placeholder.",
+      "free_skill": "administer",
+      "is_default": true,
+      "version": "1.0.0",
+      "growth_table": {
+        "1": {"type": "ATTRIBUTE", "category": "ANY", "points": 1},
+        "2": {"type": "ATTRIBUTE", "category": "PHYSICAL", "points": 2},
+        "3": {"type": "ATTRIBUTE", "category": "PHYSICAL", "points": 2},
+        "4": {"type": "ATTRIBUTE", "category": "MENTAL", "points": 2},
+        "5": {"type": "SKILL", "name": "administer", "points": 1},
+        "6": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "learning_table": {
+        "1": {"type": "SKILL", "name": "administer", "points": 1},
+        "2": {"type": "SKILL", "name": "any_combat", "points": 1},
+        "3": {"type": "SKILL", "name": "notice", "points": 1},
+        "4": {"type": "SKILL", "name": "sneak", "points": 1},
+        "5": {"type": "SKILL", "name": "talk", "points": 1},
+        "6": {"type": "SKILL", "name": "connect", "points": 1},
+        "7": {"type": "SKILL", "name": "heal", "points": 1},
+        "8": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "manual_table": {
+        "1": {"type": "SKILL", "name": "punch", "points": 1},
+        "2": {"type": "SKILL", "name": "shoot", "points": 1},
+        "3": {"type": "SKILL", "name": "stab", "points": 1},
+        "4": {"type": "SKILL", "name": "administer", "points": 1},
+        "5": {"type": "SKILL", "name": "notice", "points": 1},
+        "6": {"type": "SKILL", "name": "sneak", "points": 1},
+        "7": {"type": "SKILL", "name": "talk", "points": 1},
+        "8": {"type": "SKILL", "name": "connect", "points": 1},
+        "9": {"type": "SKILL", "name": "heal", "points": 1}
+      }
+    }
+  },
+  {
+    "model": "characters.background",
+    "pk": 13,
+    "fields": {
+      "name": "Manager",
+      "description": "Placeholder.",
+      "free_skill": "administer",
+      "is_default": true,
+      "version": "1.0.0",
+      "growth_table": {
+        "1": {"type": "ATTRIBUTE", "category": "ANY", "points": 1},
+        "2": {"type": "ATTRIBUTE", "category": "MENTAL", "points": 2},
+        "3": {"type": "ATTRIBUTE", "category": "MENTAL", "points": 2},
+        "4": {"type": "ATTRIBUTE", "category": "MENTAL", "points": 2},
+        "5": {"type": "SKILL", "name": "administer", "points": 1},
+        "6": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "learning_table": {
+        "1": {"type": "SKILL", "name": "administer", "points": 1},
+        "2": {"type": "SKILL", "name": "talk", "points": 1},
+        "3": {"type": "SKILL", "name": "trade", "points": 1},
+        "4": {"type": "SKILL", "name": "connect", "points": 1},
+        "5": {"type": "SKILL", "name": "notice", "points": 1},
+        "6": {"type": "SKILL", "name": "lead", "points": 1},
+        "7": {"type": "SKILL", "name": "program", "points": 1},
+        "8": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "manual_table": {
+        "1": {"type": "SKILL", "name": "administer", "points": 1},
+        "2": {"type": "SKILL", "name": "talk", "points": 1},
+        "3": {"type": "SKILL", "name": "trade", "points": 1},
+        "4": {"type": "SKILL", "name": "connect", "points": 1},
+        "5": {"type": "SKILL", "name": "notice", "points": 1},
+        "6": {"type": "SKILL", "name": "lead", "points": 1},
+        "7": {"type": "SKILL", "name": "program", "points": 1}
+      }
+    }
+  },
+  {
+    "model": "characters.background",
+    "pk": 14,
+    "fields": {
+      "name": "Outlander",
+      "description": "Placeholder.",
+      "free_skill": "survive",
+      "is_default": true,
+      "version": "1.0.0",
+      "growth_table": {
+        "1": {"type": "ATTRIBUTE", "category": "ANY", "points": 1},
+        "2": {"type": "ATTRIBUTE", "category": "MENTAL", "points": 2},
+        "3": {"type": "ATTRIBUTE", "category": "PHYSICAL", "points": 2},
+        "4": {"type": "ATTRIBUTE", "category": "PHYSICAL", "points": 2},
+        "5": {"type": "SKILL", "name": "survive", "points": 1},
+        "6": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "learning_table": {
+        "1": {"type": "SKILL", "name": "survive", "points": 1},
+        "2": {"type": "SKILL", "name": "drive", "points": 1},
+        "3": {"type": "SKILL", "name": "fix", "points": 1},
+        "4": {"type": "SKILL", "name": "trade", "points": 1},
+        "5": {"type": "SKILL", "name": "sneak", "points": 1},
+        "6": {"type": "SKILL", "name": "connect", "points": 1},
+        "7": {"type": "SKILL", "name": "any_combat", "points": 1},
+        "8": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "manual_table": {
+        "1": {"type": "SKILL", "name": "punch", "points": 1},
+        "2": {"type": "SKILL", "name": "shoot", "points": 1},
+        "3": {"type": "SKILL", "name": "stab", "points": 1},
+        "4": {"type": "SKILL", "name": "survive", "points": 1},
+        "5": {"type": "SKILL", "name": "drive", "points": 1},
+        "6": {"type": "SKILL", "name": "fix", "points": 1},
+        "7": {"type": "SKILL", "name": "trade", "points": 1},
+        "8": {"type": "SKILL", "name": "sneak", "points": 1},
+        "9": {"type": "SKILL", "name": "connect", "points": 1}
+      }
+    }
+  },
+  {
+    "model": "characters.background",
+    "pk": 15,
+    "fields": {
+      "name": "Performer",
+      "description": "Placeholder.",
+      "free_skill": "perform",
+      "is_default": true,
+      "version": "1.0.0",
+      "growth_table": {
+        "1": {"type": "ATTRIBUTE", "category": "ANY", "points": 1},
+        "2": {"type": "ATTRIBUTE", "category": "ANY", "points": 2},
+        "3": {"type": "ATTRIBUTE", "category": "MENTAL", "points": 2},
+        "4": {"type": "ATTRIBUTE", "category": "PHYSICAL", "points": 2},
+        "5": {"type": "SKILL", "name": "perform", "points": 1},
+        "6": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "learning_table": {
+        "1": {"type": "SKILL", "name": "perform", "points": 1},
+        "2": {"type": "SKILL", "name": "lead", "points": 1},
+        "3": {"type": "SKILL", "name": "connect", "points": 1},
+        "4": {"type": "SKILL", "name": "talk", "points": 1},
+        "5": {"type": "SKILL", "name": "trade", "points": 1},
+        "6": {"type": "SKILL", "name": "sneak", "points": 1},
+        "7": {"type": "SKILL", "name": "any_combat", "points": 1},
+        "8": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "manual_table": {
+        "1": {"type": "SKILL", "name": "punch", "points": 1},
+        "2": {"type": "SKILL", "name": "shoot", "points": 1},
+        "3": {"type": "SKILL", "name": "stab", "points": 1},
+        "4": {"type": "SKILL", "name": "perform", "points": 1},
+        "5": {"type": "SKILL", "name": "lead", "points": 1},
+        "6": {"type": "SKILL", "name": "connect", "points": 1},
+        "7": {"type": "SKILL", "name": "talk", "points": 1},
+        "8": {"type": "SKILL", "name": "trade", "points": 1},
+        "9": {"type": "SKILL", "name": "sneak", "points": 1}
+      }
+    }
+  },
+  {
+    "model": "characters.background",
+    "pk": 16,
+    "fields": {
+      "name": "Soldier",
+      "description": "Placeholder.",
+      "free_skill": "any_combat",
+      "is_default": true,
+      "version": "1.0.0",
+      "growth_table": {
+        "1": {"type": "ATTRIBUTE", "category": "ANY", "points": 1},
+        "2": {"type": "ATTRIBUTE", "category": "MENTAL", "points": 2},
+        "3": {"type": "ATTRIBUTE", "category": "PHYSICAL", "points": 2},
+        "4": {"type": "ATTRIBUTE", "category": "PHYSICAL", "points": 2},
+        "5": {"type": "SKILL", "name": "any_combat", "points": 1},
+        "6": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "learning_table": {
+        "1": {"type": "SKILL", "name": "any_combat", "points": 1},
+        "2": {"type": "SKILL", "name": "exert", "points": 1},
+        "3": {"type": "SKILL", "name": "lead", "points": 1},
+        "4": {"type": "SKILL", "name": "notice", "points": 1},
+        "5": {"type": "SKILL", "name": "survive", "points": 1},
+        "6": {"type": "SKILL", "name": "heal", "points": 1},
+        "7": {"type": "SKILL", "name": "administer", "points": 1},
+        "8": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "manual_table": {
+        "1": {"type": "SKILL", "name": "punch", "points": 1},
+        "2": {"type": "SKILL", "name": "shoot", "points": 1},
+        "3": {"type": "SKILL", "name": "stab", "points": 1},
+        "4": {"type": "SKILL", "name": "exert", "points": 1},
+        "5": {"type": "SKILL", "name": "lead", "points": 1},
+        "6": {"type": "SKILL", "name": "notice", "points": 1},
+        "7": {"type": "SKILL", "name": "survive", "points": 1},
+        "8": {"type": "SKILL", "name": "heal", "points": 1},
+        "9": {"type": "SKILL", "name": "administer", "points": 1}
+      }}},
+      {
+    "model": "characters.background",
+    "pk": 17,
+    "fields": {
+      "name": "Spy",
+      "description": "Placeholder.",
+      "free_skill": "sneak",
+      "is_default": true,
+      "version": "1.0.0",
+      "growth_table": {
+        "1": {"type": "ATTRIBUTE", "category": "ANY", "points": 1},
+        "2": {"type": "ATTRIBUTE", "category": "ANY", "points": 2},
+        "3": {"type": "ATTRIBUTE", "category": "MENTAL", "points": 2},
+        "4": {"type": "ATTRIBUTE", "category": "PHYSICAL", "points": 2},
+        "5": {"type": "SKILL", "name": "sneak", "points": 1},
+        "6": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "learning_table": {
+        "1": {"type": "SKILL", "name": "sneak", "points": 1},
+        "2": {"type": "SKILL", "name": "notice", "points": 1},
+        "3": {"type": "SKILL", "name": "talk", "points": 1},
+        "4": {"type": "SKILL", "name": "connect", "points": 1},
+        "5": {"type": "SKILL", "name": "program", "points": 1},
+        "6": {"type": "SKILL", "name": "exert", "points": 1},
+        "7": {"type": "SKILL", "name": "any_combat", "points": 1},
+        "8": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "manual_table": {
+        "1": {"type": "SKILL", "name": "punch", "points": 1},
+        "2": {"type": "SKILL", "name": "shoot", "points": 1},
+        "3": {"type": "SKILL", "name": "stab", "points": 1},
+        "4": {"type": "SKILL", "name": "sneak", "points": 1},
+        "5": {"type": "SKILL", "name": "notice", "points": 1},
+        "6": {"type": "SKILL", "name": "talk", "points": 1},
+        "7": {"type": "SKILL", "name": "connect", "points": 1},
+        "8": {"type": "SKILL", "name": "program", "points": 1},
+        "9": {"type": "SKILL", "name": "exert", "points": 1}
+      }
+    }
+  },
+  {
+    "model": "characters.background",
+    "pk": 18,
+    "fields": {
+      "name": "Trader",
+      "description": "Placeholder.",
+      "free_skill": "trade",
+      "is_default": true,
+      "version": "1.0.0",
+      "growth_table": {
+        "1": {"type": "ATTRIBUTE", "category": "ANY", "points": 1},
+        "2": {"type": "ATTRIBUTE", "category": "MENTAL", "points": 2},
+        "3": {"type": "ATTRIBUTE", "category": "MENTAL", "points": 2},
+        "4": {"type": "ATTRIBUTE", "category": "PHYSICAL", "points": 2},
+        "5": {"type": "SKILL", "name": "trade", "points": 1},
+        "6": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "learning_table": {
+        "1": {"type": "SKILL", "name": "trade", "points": 1},
+        "2": {"type": "SKILL", "name": "notice", "points": 1},
+        "3": {"type": "SKILL", "name": "connect", "points": 1},
+        "4": {"type": "SKILL", "name": "fix", "points": 1},
+        "5": {"type": "SKILL", "name": "talk", "points": 1},
+        "6": {"type": "SKILL", "name": "administer", "points": 1},
+        "7": {"type": "SKILL", "name": "any_combat", "points": 1},
+        "8": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "manual_table": {
+        "1": {"type": "SKILL", "name": "punch", "points": 1},
+        "2": {"type": "SKILL", "name": "shoot", "points": 1},
+        "3": {"type": "SKILL", "name": "stab", "points": 1},
+        "4": {"type": "SKILL", "name": "trade", "points": 1},
+        "5": {"type": "SKILL", "name": "notice", "points": 1},
+        "6": {"type": "SKILL", "name": "connect", "points": 1},
+        "7": {"type": "SKILL", "name": "fix", "points": 1},
+        "8": {"type": "SKILL", "name": "talk", "points": 1},
+        "9": {"type": "SKILL", "name": "administer", "points": 1}
+      }
+    }
+  },
+  {
+    "model": "characters.background",
+    "pk": 19,
+    "fields": {
+      "name": "Streetwalker",
+      "description": "Placeholder.",
+      "free_skill": "talk",
+      "is_default": true,
+      "version": "1.0.0",
+      "growth_table": {
+        "1": {"type": "ATTRIBUTE", "category": "ANY", "points": 1},
+        "2": {"type": "ATTRIBUTE", "category": "ANY", "points": 2},
+        "3": {"type": "ATTRIBUTE", "category": "PHYSICAL", "points": 2},
+        "4": {"type": "ATTRIBUTE", "category": "MENTAL", "points": 2},
+        "5": {"type": "SKILL", "name": "talk", "points": 1},
+        "6": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "learning_table": {
+        "1": {"type": "SKILL", "name": "talk", "points": 1},
+        "2": {"type": "SKILL", "name": "perform", "points": 1},
+        "3": {"type": "SKILL", "name": "connect", "points": 1},
+        "4": {"type": "SKILL", "name": "trade", "points": 1},
+        "5": {"type": "SKILL", "name": "sneak", "points": 1},
+        "6": {"type": "SKILL", "name": "notice", "points": 1},
+        "7": {"type": "SKILL", "name": "heal", "points": 1},
+        "8": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "manual_table": {
+        "1": {"type": "SKILL", "name": "talk", "points": 1},
+        "2": {"type": "SKILL", "name": "perform", "points": 1},
+        "3": {"type": "SKILL", "name": "connect", "points": 1},
+        "4": {"type": "SKILL", "name": "trade", "points": 1},
+        "5": {"type": "SKILL", "name": "sneak", "points": 1},
+        "6": {"type": "SKILL", "name": "notice", "points": 1},
+        "7": {"type": "SKILL", "name": "heal", "points": 1}
+      }
+    }
+  },
+  {
+    "model": "characters.background",
+    "pk": 20,
+    "fields": {
+      "name": "Technician",
+      "description": "Placeholder.",
+      "free_skill": "fix",
+      "is_default": true,
+      "version": "1.0.0",
+      "growth_table": {
+        "1": {"type": "ATTRIBUTE", "category": "ANY", "points": 1},
+        "2": {"type": "ATTRIBUTE", "category": "PHYSICAL", "points": 2},
+        "3": {"type": "ATTRIBUTE", "category": "MENTAL", "points": 2},
+        "4": {"type": "ATTRIBUTE", "category": "MENTAL", "points": 2},
+        "5": {"type": "SKILL", "name": "fix", "points": 1},
+        "6": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "learning_table": {
+        "1": {"type": "SKILL", "name": "fix", "points": 1},
+        "2": {"type": "SKILL", "name": "program", "points": 1},
+        "3": {"type": "SKILL", "name": "exert", "points": 1},
+        "4": {"type": "SKILL", "name": "trade", "points": 1},
+        "5": {"type": "SKILL", "name": "notice", "points": 1},
+        "6": {"type": "SKILL", "name": "connect", "points": 1},
+        "7": {"type": "SKILL", "name": "drive", "points": 1},
+        "8": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "manual_table": {
+        "1": {"type": "SKILL", "name": "fix", "points": 1},
+        "2": {"type": "SKILL", "name": "program", "points": 1},
+        "3": {"type": "SKILL", "name": "exert", "points": 1},
+        "4": {"type": "SKILL", "name": "trade", "points": 1},
+        "5": {"type": "SKILL", "name": "notice", "points": 1},
+        "6": {"type": "SKILL", "name": "connect", "points": 1},
+        "7": {"type": "SKILL", "name": "drive", "points": 1}
       }
     }
   }
+
+
 ]

@@ -60,6 +60,8 @@ import ViewCharacter from './components/ViewCharacter';
 import AttributeCreationWrapper from './components/AttributeCreationWrapper';
 import AttributeCreationStarter from './components/AttributeCreationStarter';
 import NewCharacterChoice from './components/NewCharacterChoice';
+import BackgroundCreation from './components/BackgroundCreation';
+import Contacts from './components/Contacts';
 
 function App() {
   return (
@@ -75,9 +77,9 @@ function App() {
             <Route path="/new/manual" element={<ProtectedRoute><CharacterForm /></ProtectedRoute>} />
             <Route path="/new/discover" element={<ProtectedRoute><AttributeCreationStarter /></ProtectedRoute>} />
             <Route path="/characters/:id/attributes" element={<ProtectedRoute><AttributeCreationWrapper /></ProtectedRoute>} />
-            <Route path="/characters/:id/backgrounds" element={<ProtectedRoute>
-              <div className="card"><h2>Background Selection (Coming Soon)</h2></div>
-            </ProtectedRoute>} />
+            <Route path="/characters/:id/backgrounds" element={<ProtectedRoute><BackgroundCreation /></ProtectedRoute>} />
+
+            <Route path="/characters/:id/contacts" element={<ProtectedRoute><Contacts /></ProtectedRoute>} />
 
             {/* Moved this route correctly inside the Layout */}
             <Route path="/characters/:id" element={<ProtectedRoute><ViewCharacter /></ProtectedRoute>} />
@@ -442,14 +444,21 @@ export default AttributeCreation;
 
 ----- .\client\src\components\AttributeCreationStarter.js -----
 
-import React, { useEffect } from 'react';
+// client/src/components/AttributeCreationStarter.js
+import React, { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 
 const AttributeCreationStarter = () => {
   const navigate = useNavigate();
+  // A ref to ensure we only call createInProgressCharacter once in Strict Mode
+  const hasCreatedRef = useRef(false);
 
   useEffect(() => {
+    // This check will prevent the function from running again in dev’s Strict Mode
+    if (hasCreatedRef.current) return;
+    hasCreatedRef.current = true;
+
     const createInProgressCharacter = async () => {
       try {
         const response = await api.post('/characters/', {
@@ -465,7 +474,7 @@ const AttributeCreationStarter = () => {
     };
 
     createInProgressCharacter();
-  }, [navigate]);
+  }, [navigate]); // Note the empty dependency array
 
   return (
     <div className="card">
@@ -489,6 +498,431 @@ const AttributeCreationWrapper = () => {
 };
 
 export default AttributeCreationWrapper;
+
+
+----- .\client\src\components\BackgroundCreation.js -----
+
+// client/src/components/BackgroundCreation.js
+import React, { useState, useEffect } from 'react';
+import axios from '../services/api';
+import { useNavigate, useParams } from 'react-router-dom';
+
+const ATTRIBUTE_NAMES = ["strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma"];
+const ANY_COMBAT_OPTIONS = ["Punch", "Shoot", "Stab"];
+const ANY_AVAILABLE_SKILLS = ["Administer", "Connect", "Drive", "Exert", "Fix", "Heal", "Know", "Lead", "Notice", "Perform", "Program", "Punch", "Shoot", "Sneak", "Stab", "Survive", "Talk", "Trade", "Work"];
+
+const BackgroundCreation = () => {
+  const [backgrounds, setBackgrounds] = useState([]);
+  const [selectedBackground, setSelectedBackground] = useState(null);
+  const [mode, setMode] = useState('roll'); // 'roll' or 'manual'
+  const [rollData, setRollData] = useState({growth_rolls: [], learning_rolls: []});
+  const [computedResults, setComputedResults] = useState([]); // results from dice rolls
+  const [manualChoices, setManualChoices] = useState([]); // manual pick choices
+  const [error, setError] = useState(null);
+  const [pendingAnySkill, setPendingAnySkill] = useState(null);
+  // NEW: State to capture bonus attribute point assignments.
+  // Structure will be an object like: { strength: 1, dexterity: 1 }
+  const [attributeBonusAssignments, setAttributeBonusAssignments] = useState({});
+  const [pendingDistributions, setPendingDistributions] = useState([]);
+
+  const navigate = useNavigate();
+  const {id} = useParams(); // character ID
+  const handleDistributionComplete = (dist, finalAssignment) => {
+  // Merge the completed distribution result into computedResults
+  setComputedResults(prev => [...prev, { ...dist, assigned_attributes: finalAssignment }]);
+  // Remove this distribution from pendingDistributions.
+  setPendingDistributions(prev => prev.filter(d => d !== dist));
+};
+
+  useEffect(() => {
+    axios.get('/backgrounds/')
+        .then(res => setBackgrounds(res.data))
+        .catch(err => setError('Failed to load backgrounds.'));
+  }, []);
+
+  const handleBackgroundSelect = (bg) => {
+    setSelectedBackground(bg);
+    setRollData({growth_rolls: [], learning_rolls: []});
+    setComputedResults([]);
+    setManualChoices([]);
+    setError(null);
+    setPendingAnySkill(null);
+    setAttributeBonusAssignments({});
+  };
+
+  const rollD6 = () => Math.floor(Math.random() * 6) + 1;
+  const rollD8 = () => Math.floor(Math.random() * 8) + 1;
+
+  const handleRoll = (tableType) => {
+    const totalRolls = rollData.growth_rolls.length + rollData.learning_rolls.length;
+    if (totalRolls >= 3) return;
+
+    if (tableType === 'growth') {
+      const roll = rollD6();
+      setRollData(prev => ({...prev, growth_rolls: [...prev.growth_rolls, roll]}));
+      if (selectedBackground && selectedBackground.growth_table) {
+        const result = selectedBackground.growth_table[String(roll)];
+        if (result) {
+          if (
+              result.type === "ATTRIBUTE" &&
+              ["ANY", "PHYSICAL", "MENTAL"].includes(result.category.toUpperCase())
+          ) {
+            // Instead of auto-assigning, push this result into pendingDistributions
+            setPendingDistributions(prev => [...prev, result]);
+          } else if (
+              result.type === "SKILL" &&
+              (result.name.toLowerCase() === "any" || result.name.toLowerCase() === "any_combat")
+          ) {
+            setPendingAnySkill(result.name.toLowerCase());
+            // Still add it to computedResults if needed
+            setComputedResults(prev => [...prev, result]);
+          } else {
+            setComputedResults(prev => [...prev, result]);
+          }
+        }
+      } else if (tableType === 'learning') {
+        const roll = rollD8();
+        setRollData(prev => ({...prev, learning_rolls: [...prev.learning_rolls, roll]}));
+        if (selectedBackground && selectedBackground.learning_table) {
+          const result = selectedBackground.learning_table[String(roll)];
+          if (result) {
+            if (result.type === "SKILL" && (result.name.toLowerCase() === "any" || result.name.toLowerCase() === "any_combat")) {
+              setPendingAnySkill(result.name.toLowerCase());
+            }
+            setComputedResults(prev => [...prev, result]);
+          }
+        }
+      }
+    }
+    ;
+
+    const handleAnySkillSelection = (selectedSkill) => {
+      setComputedResults(prevResults =>
+          prevResults.map(res =>
+              (res.type === "SKILL" && (res.name.toLowerCase() === "any" || res.name.toLowerCase() === "any_combat"))
+                  ? {...res, name: selectedSkill}
+                  : res
+          )
+      );
+      setPendingAnySkill(null);
+    };
+
+    // NEW: Identify if a bonus result exists (i.e. an attribute bonus with more than 1 point)
+    const bonusResult = computedResults.find(res => res.type === "ATTRIBUTE" && res.points > 1);
+    let allowedAttributes = [];
+    if (bonusResult) {
+      const cat = bonusResult.category.toUpperCase();
+      if (cat === "ANY") {
+        allowedAttributes = ["strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma"];
+      } else if (cat === "PHYSICAL") {
+        allowedAttributes = ["strength", "dexterity", "constitution"];
+      } else if (cat === "MENTAL") {
+        allowedAttributes = ["intelligence", "wisdom", "charisma"];
+      }
+    }
+    const sumAssigned = Object.values(attributeBonusAssignments).reduce((acc, val) => acc + Number(val), 0);
+
+    const handleBonusChange = (attr, value) => {
+      const numericVal = Math.max(0, parseInt(value) || 0);
+      setAttributeBonusAssignments(prev => ({...prev, [attr]: numericVal}));
+    };
+
+    const buildPayload = () => {
+      let payload = {background_id: selectedBackground.id, mode};
+      if (mode === 'roll') {
+        payload.growth_rolls = rollData.growth_rolls;
+        payload.learning_rolls = rollData.learning_rolls;
+        payload.results = computedResults;
+        // Include bonus distribution if a bonus result exists.
+        if (bonusResult) {
+          payload.bonus_distribution = [{
+            category: bonusResult.category,
+            points: bonusResult.points,
+            assigned_attributes: attributeBonusAssignments
+          }];
+        }
+      } else {
+        payload.manual_choices = manualChoices;
+      }
+      return payload;
+    };
+
+const handleConfirm = () => {
+  if (!selectedBackground) {
+    setError("Please select a background.");
+    return;
+  }
+  if (mode === 'roll') {
+    if ((rollData.growth_rolls.length + rollData.learning_rolls.length) !== 3) {
+      setError("Please roll exactly 3 times (combined).");
+      return;
+    }
+    if (computedResults.length + pendingDistributions.length !== 3) {
+      setError("Results are incomplete. Please complete any bonus distributions.");
+      return;
+    }
+    if (pendingAnySkill) {
+      setError("Please select a bonus skill for your ANY roll.");
+      return;
+    }
+  } else {
+    if (manualChoices.length !== 2) {
+      setError("Please select exactly 2 manual choices.");
+      return;
+    }
+  }
+  const payload = buildPayload();
+  console.log("Sending payload:", payload);
+  axios.patch(`/characters/${id}/`, { background_selection: payload })
+    .then(res => {
+      navigate(`/characters/${id}/contacts`);
+    })
+    .catch(err => {
+      console.error("Error saving background selection:", err.response.data);
+      setError("Error saving background selection.");
+    });
+};
+
+
+    return (
+        <div className="card">
+          <h2>Background Selection</h2>
+          {error && <div style={{color: 'red'}}>{error}</div>}
+          {!selectedBackground ? (
+              <div>
+                <h3>Choose a Background:</h3>
+                <ul>
+                  {backgrounds.map(bg => (
+                      <li key={bg.id}>
+                        <button onClick={() => handleBackgroundSelect(bg)}>
+                          <strong>{bg.name}</strong>: {bg.description}<br/>
+                          Free Skill: {bg.free_skill}
+                        </button>
+                      </li>
+                  ))}
+                </ul>
+              </div>
+          ) : (
+              <div>
+                <h3>{selectedBackground.name} Selected</h3>
+                <p>{selectedBackground.description}</p>
+                <p>Free Skill: {selectedBackground.free_skill}</p>
+                <div>
+                  <label>
+                    <input
+                        type="radio"
+                        value="roll"
+                        checked={mode === 'roll'}
+                        onChange={() => {
+                          setMode('roll');
+                          setError(null);
+                        }}
+                    />
+                    Roll-based Selection
+                  </label>
+                  <label style={{marginLeft: '20px'}}>
+                    <input
+                        type="radio"
+                        value="manual"
+                        checked={mode === 'manual'}
+                        onChange={() => {
+                          setMode('manual');
+                          setError(null);
+                        }}
+                    />
+                    Manual Selection
+                  </label>
+                </div>
+                {mode === 'roll' && (
+                    <div>
+                      <h4>Roll Dice (3 rolls total):</h4>
+                      <button
+                          onClick={() => handleRoll('growth')}
+                          disabled={(rollData.growth_rolls.length + rollData.learning_rolls.length) >= 3}
+                      >
+                        Roll d6 for Growth
+                      </button>
+                      <button
+                          onClick={() => handleRoll('learning')}
+                          disabled={(rollData.growth_rolls.length + rollData.learning_rolls.length) >= 3}
+                          style={{marginLeft: '10px'}}
+                      >
+                        Roll d8 for Learning
+                      </button>
+                      <div>
+                        <p>Growth Rolls: {rollData.growth_rolls.join(', ')}</p>
+                        <p>Learning Rolls: {rollData.learning_rolls.join(', ')}</p>
+                      </div>
+                      {computedResults.length > 0 && (
+                          <div>
+                            <h4>Results:</h4>
+                            <ul>
+                              {computedResults.map((res, idx) => (
+                                  <li key={idx}>
+                                    {res.type === "ATTRIBUTE" ? (
+                                        <span>+{res.points} bonus to {res.category} attribute</span>
+                                    ) : res.type === "SKILL" ? (
+                                        <span>Gain {res.points} point in skill: {res.name}</span>
+                                    ) : null}
+                                  </li>
+                              ))}
+                            </ul>
+                          </div>
+                      )}
+                    </div>
+                )}
+                {mode === 'manual' && (
+                    <div>
+                      <h4>Manual Choices (Select 2):</h4>
+                      {selectedBackground.manual_table && Object.values(selectedBackground.manual_table)
+                          .filter(option => option.name.toLowerCase() !== "any" && option.name.toLowerCase() !== "any combat")
+                          .map(option => (
+                              <button
+                                  key={option.name + option.points}
+                                  onClick={() => {
+                                    if (manualChoices.length < 2 && !manualChoices.find(c => c.name === option.name)) {
+                                      setManualChoices(prev => [...prev, option]);
+                                    }
+                                  }}
+                                  style={{margin: '5px'}}
+                                  disabled={manualChoices.length >= 2 && !manualChoices.find(c => c.name === option.name)}
+                              >
+                                {option.name} ({option.points} point{option.points > 1 ? 's' : ''})
+                              </button>
+                          ))}
+                      <p>Selected: {manualChoices.map(choice => choice.name).join(', ')}</p>
+                    </div>
+                )}
+                {pendingAnySkill && (
+                    <div className="card" style={{marginTop: '20px', padding: '10px'}}>
+                      <h4>Select your bonus skill:</h4>
+                      {(pendingAnySkill === "any_combat" ? ANY_COMBAT_OPTIONS : ANY_AVAILABLE_SKILLS).map(skill => (
+                          <button
+                              key={skill}
+                              onClick={() => handleAnySkillSelection(skill)}
+                              style={{margin: '5px'}}
+                          >
+                            {skill}
+                          </button>
+                      ))}
+                    </div>
+                )}
+                {bonusResult && (
+                    <div className="card" style={{marginTop: '20px', padding: '10px'}}>
+                      <h4>
+                        Distribute {bonusResult.points} bonus point(s) for {bonusResult.category} attribute:
+                      </h4>
+                      {allowedAttributes.map(attr => (
+                          <div key={attr}>
+                            <label>{attr}: </label>
+                            <input
+                                type="number"
+                                min="0"
+                                max={bonusResult.points}
+                                value={attributeBonusAssignments[attr] || 0}
+                                onChange={(e) => handleBonusChange(attr, e.target.value)}
+                            />
+                          </div>
+                      ))}
+                      <p>Total assigned: {sumAssigned}</p>
+                      {sumAssigned !== bonusResult.points && (
+                          <p style={{color: 'red'}}>
+                            Please assign exactly {bonusResult.points} point(s).
+                          </p>
+                      )}
+                    </div>
+                )}
+                <div style={{marginTop: '20px'}}>
+                  <button onClick={handleConfirm}>Confirm Background Selection</button>
+                </div>
+              </div>
+          )}
+        </div>
+    );
+  };
+}
+export default BackgroundCreation;
+
+const BonusAttributeDistribution = ({ distribution, onComplete }) => {
+  // Determine allowed attributes based on the category.
+  let allowedAttributes = [];
+  const category = distribution.category.toUpperCase();
+  if (category === "ANY") {
+    allowedAttributes = ["strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma"];
+  } else if (category === "PHYSICAL") {
+    allowedAttributes = ["strength", "dexterity", "constitution"];
+  } else if (category === "MENTAL") {
+    allowedAttributes = ["intelligence", "wisdom", "charisma"];
+  }
+
+  // Initialize bonus assignments to zero for each allowed attribute.
+  const initialAssignments = allowedAttributes.reduce((acc, attr) => {
+    acc[attr] = 0;
+    return acc;
+  }, {});
+
+  const [assignments, setAssignments] = useState(initialAssignments);
+  const totalAssigned = Object.values(assignments).reduce((sum, val) => sum + Number(val), 0);
+  const [pendingDistributions, setPendingDistributions] = useState([]);
+  // Handle input changes for each attribute.
+  const handleChange = (attr, value) => {
+    const numericValue = Math.max(0, parseInt(value, 10) || 0);
+    setAssignments(prev => ({ ...prev, [attr]: numericValue }));
+  };
+    const handleDistributionComplete = (dist, finalAssignment) => {
+  // Merge the completed distribution result into computedResults
+  setComputedResults(prev => [...prev, { ...dist, assigned_attributes: finalAssignment }]);
+  // Remove this distribution from pendingDistributions.
+  setPendingDistributions(prev => prev.filter(d => d !== dist));
+};
+  const [computedResults, setComputedResults] = useState([]); // results from dice rolls
+  // The Confirm button is enabled only when the total equals distribution.points.
+  const isComplete = totalAssigned === distribution.points;
+
+  return (
+    <div className="card" style={{ marginTop: '20px', padding: '10px' }}>
+      <h4>Distribute {distribution.points} bonus point{distribution.points > 1 ? 's' : ''} ({distribution.category})</h4>
+      {allowedAttributes.map(attr => (
+        <div key={attr} style={{ marginBottom: '10px' }}>
+          <label style={{ textTransform: 'capitalize' }}>
+            {attr}:
+            <input
+              type="number"
+              min="0"
+              max={distribution.points}
+              value={assignments[attr]}
+              onChange={(e) => handleChange(attr, e.target.value)}
+              style={{ marginLeft: '10px', width: '60px' }}
+            />
+          </label>
+        </div>
+      ))}
+      <p>Total assigned: {totalAssigned}</p>
+      {!isComplete && (
+        <p style={{ color: 'red' }}>Please assign exactly {distribution.points} point(s).</p>
+      )}
+      {pendingDistributions.length > 0 && (
+  <div>
+    {pendingDistributions.map((dist, idx) => (
+      <BonusAttributeDistribution
+        key={idx}
+        distribution={dist}
+        onComplete={(finalAssignment) => handleDistributionComplete(dist, finalAssignment)}
+      />
+    ))}
+  </div>
+)}
+      <button
+        onClick={() => onComplete(assignments)}
+        disabled={!isComplete}
+      >
+        Confirm Distribution
+      </button>
+    </div>
+  );
+};
+
+export { BonusAttributeDistribution };
 
 
 ----- .\client\src\components\CharacterForm.js -----
@@ -658,6 +1092,23 @@ const CharacterList = () => {
 };
 
 export default CharacterList;
+
+
+----- .\client\src\components\Contacts.js -----
+
+// client/src/components/Contacts.js
+import React from 'react';
+
+const Contacts = () => {
+  return (
+    <div className="card">
+      <h2>Contacts (Coming Soon)</h2>
+      <p>This is a placeholder for the Contacts step in character creation.</p>
+    </div>
+  );
+};
+
+export default Contacts;
 
 
 ----- .\client\src\components\Home.js -----
@@ -881,7 +1332,8 @@ export default ProtectedRoute;
 
 ----- .\client\src\components\Register.js -----
 
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
+import { AuthContext } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 
@@ -892,7 +1344,7 @@ function Register() {
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
   const navigate = useNavigate();
-
+  const { handleLogin } = useContext(AuthContext);
   const validateRegister = () => {
     let errors = {};
 
@@ -927,8 +1379,11 @@ function Register() {
 
     try {
       await api.post('/register/', { username, password, email });
-      // Redirect to the Home page after successful registration
-      navigate('/home');
+      const loginResponse = await api.post('/token/', { username, password });
+      localStorage.setItem('accessToken', loginResponse.data.access);
+      localStorage.setItem('refreshToken', loginResponse.data.refresh);
+      handleLogin(loginResponse.data.access);
+      navigate('/home');;
     } catch (err) {
       console.error('Registration error:', err.response.data);
       setError('Registration failed.');
@@ -998,7 +1453,6 @@ const ViewCharacter = () => {
         setLoading(false);
       }
     };
-
     fetchCharacter();
   }, [id]);
 
@@ -1008,6 +1462,7 @@ const ViewCharacter = () => {
   return (
     <div className="card">
       <h2>{character.name}</h2>
+      <h3>Attributes</h3>
       <ul>
         <li>Strength: {character.strength}</li>
         <li>Dexterity: {character.dexterity}</li>
@@ -1016,9 +1471,28 @@ const ViewCharacter = () => {
         <li>Wisdom: {character.wisdom}</li>
         <li>Charisma: {character.charisma}</li>
       </ul>
-      <small>
-        Created: {new Date(character.created_at).toLocaleString()}
-      </small>
+      <h3>Background</h3>
+      {character.background ? (
+        <div>
+          <p><strong>{character.background.name}</strong></p>
+          <p>{character.background.description}</p>
+          <p>Free Skill: {character.background.free_skill}</p>
+        </div>
+      ) : (
+        <p>No background selected.</p>
+      )}
+      <h3>Acquired Skills</h3>
+      {character.skills && character.skills.length > 0 ? (
+        <ul>
+          {character.skills.map((cs, index) => (
+            <li key={index}>
+              {cs.skill.name} – Level: {cs.level}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p>No skills acquired yet.</p>
+      )}
     </div>
   );
 };
@@ -1198,10 +1672,12 @@ if __name__ == '__main__':
 
 ----- .\server\characters\admin.py -----
 
+# server/characters/admin.py
 from django.contrib import admin
+from .models import Background, Skill
 
-# Register your models here.
-
+admin.site.register(Background)
+admin.site.register(Skill)
 
 ----- .\server\characters\apps.py -----
 
@@ -1303,16 +1779,36 @@ class CharacterSkill(models.Model):
         # If a CharacterSkill record exists, its effective modifier is simply the stored level.
         return self.level
 
+class Modifier(models.Model):
+    MODIFIER_TYPE_CHOICES = [
+        ('ATTRIBUTE', 'Attribute'),
+        ('SKILL', 'Skill'),
+    ]
+    # Indicates the source of the modifier (e.g., 'Background', 'Edge', 'Focus')
+    source = models.CharField(max_length=50)
+    # ID of the source record (for traceability)
+    source_id = models.IntegerField()
+    modifier_type = models.CharField(max_length=20, choices=MODIFIER_TYPE_CHOICES)
+    # For ATTRIBUTE type, you can indicate the category (e.g., "PHYSICAL", "MENTAL", or "ANY")
+    category = models.CharField(max_length=20, blank=True, null=True)
+    # For SKILL type, the specific skill name if applicable (e.g., "Punch", "Shoot")
+    skill_name = models.CharField(max_length=50, blank=True, null=True)
+    # How many points to add (usually 1 or 2)
+    points = models.IntegerField(default=0)
+
+    def __str__(self):
+        return f"{self.source} (ID: {self.source_id}) - {self.modifier_type}: {self.points}"
+
 
 
 ----- .\server\characters\serializers.py -----
 
 from rest_framework import serializers
-from .models import Character, CharacterSkill, Skill
+from .models import Character, CharacterSkill, Skill, Background
 
 
 class CharacterSkillSerializer(serializers.ModelSerializer):
-    effective_modifier = serializers.IntegerField(source='effective_modifier', read_only=True)
+    effective_modifier = serializers.IntegerField
 
     class Meta:
         model = CharacterSkill
@@ -1333,6 +1829,11 @@ class SkillSerializer(serializers.ModelSerializer):
         model = Skill
         fields = '__all__'
 
+class BackgroundSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Background
+        fields = '__all__'
+
 ----- .\server\characters\tests.py -----
 
 from django.test import TestCase
@@ -1342,17 +1843,99 @@ from django.test import TestCase
 
 ----- .\server\characters\views.py -----
 
-from rest_framework import viewsets, permissions
-from .models import Character
-from .serializers import CharacterSerializer
-from .models import Skill
-from .serializers import SkillSerializer
+from rest_framework import viewsets, permissions, serializers
+from rest_framework.response import Response
+from .models import Character, Background, Skill, CharacterSkill
+from .serializers import CharacterSerializer, BackgroundSerializer, SkillSerializer
+from .services.modifiers import apply_modifiers
+
+
+def apply_background_selection(character, selection):
+    # Assign the selected background.
+    background_id = selection.get('background_id')
+    try:
+        background = Background.objects.get(id=background_id)
+    except Background.DoesNotExist:
+        raise serializers.ValidationError("Invalid background_id provided.")
+    character.background = background
+
+    # Apply free skill:
+    free_skill_name = background.free_skill
+    try:
+        free_skill = Skill.objects.get(name__iexact=free_skill_name)
+    except Skill.DoesNotExist:
+        raise serializers.ValidationError("The free skill defined in the background does not exist.")
+    free_cs, created = CharacterSkill.objects.get_or_create(
+        character=character,
+        skill=free_skill,
+        defaults={'level': 0}
+    )
+    if free_cs.level < 1:
+        free_cs.level = 1
+        free_cs.save()
+
+    # Process additional results (roll-based or manual).
+    if selection.get('mode') == 'roll':
+        results = selection.get('results', [])
+    else:
+        results = selection.get('manual_choices', [])
+
+    # Convert each result into a modifier dict.
+    modifiers = []
+    for item in results:
+        if item.get('type') == "ATTRIBUTE":
+            modifiers.append({
+                'modifier_type': "ATTRIBUTE",
+                'category': item.get('category'),
+                'points': item.get('points', 0),
+                # No assignment here; bonus_distribution will handle the split.
+            })
+        elif item.get('type') == "SKILL":
+            modifiers.append({
+                'modifier_type': "SKILL",
+                'skill_name': item.get('name'),
+                'points': item.get('points', 0),
+            })
+    # Apply the standard modifiers.
+    apply_modifiers(character, modifiers)
+
+    # NEW: Process bonus distribution if provided.
+    bonus_distribution = selection.get('bonus_distribution')
+    if bonus_distribution:
+        for bonus in bonus_distribution:
+            category = bonus.get('category', '').upper()
+            assignments = bonus.get('assigned_attributes', {})
+            bonus_points = bonus.get('points', 0)
+            if sum(assignments.values()) != bonus_points:
+                raise serializers.ValidationError("Total bonus assignment does not match bonus points.")
+            for attr, pts in assignments.items():
+                allowed_attrs = []
+                if category == 'ANY':
+                    allowed_attrs = ['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma']
+                elif category == 'PHYSICAL':
+                    allowed_attrs = ['strength', 'dexterity', 'constitution']
+                elif category == 'MENTAL':
+                    allowed_attrs = ['intelligence', 'wisdom', 'charisma']
+                if attr not in allowed_attrs:
+                    raise serializers.ValidationError(f"Invalid attribute assignment: {attr} for category {category}.")
+                current_val = getattr(character, attr)
+                if current_val + pts > 18:
+                    raise serializers.ValidationError(f"Assignment would exceed attribute cap for {attr}.")
+                setattr(character, attr, current_val + pts)
+
+    # Save the creation_data for traceability.
+    creation_data = character.creation_data or {}
+    creation_data['background_selection'] = selection
+    creation_data['background_completed'] = True
+    character.creation_data = creation_data
+    character.save()
 
 
 class SkillViewSet(viewsets.ModelViewSet):
     queryset = Skill.objects.all()
     serializer_class = SkillSerializer
     permission_classes = [permissions.IsAuthenticated]
+
 
 class CharacterViewSet(viewsets.ModelViewSet):
     queryset = Character.objects.all()
@@ -1363,21 +1946,847 @@ class CharacterViewSet(viewsets.ModelViewSet):
         serializer.save(user=self.request.user)
 
     def get_queryset(self):
-        # If user is staff, return all
         if self.request.user.is_staff:
             return super().get_queryset()
-        # Otherwise, limit to just user's own characters
         return super().get_queryset().filter(user=self.request.user)
 
+    def update(self, request, *args, **kwargs):
+        background_selection = request.data.pop('background_selection', None)
+        character = self.get_object()
+
+        # First, update any other fields provided.
+        serializer = self.get_serializer(character, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+
+        # Then, if background_selection is provided, apply it.
+        if background_selection:
+            try:
+                apply_background_selection(character, background_selection)
+            except serializers.ValidationError as e:
+                return Response({"detail": e.detail}, status=400)
+            # Reload serializer to reflect background changes.
+            serializer = self.get_serializer(character)
+
+        return Response(serializer.data)
+
+        # Otherwise, update other fields then apply background_selection.
+        serializer = self.get_serializer(character, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+
+        if background_selection:
+            try:
+                apply_background_selection(character, background_selection)
+            except serializers.ValidationError as e:
+                return Response({"detail": e.detail}, status=400)
+            # Reload serializer data to include background changes.
+            serializer = self.get_serializer(character)
+
+        return Response(serializer.data)
 
 
+class BackgroundViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Background.objects.all()
+    serializer_class = BackgroundSerializer
+    permission_classes = [permissions.IsAuthenticated]
 
 
 ----- .\server\characters\__init__.py -----
 
 
 
------ .\server\fixtures\initial_skills.json -----
+----- .\server\characters\fixtures\initial_backgrounds.json -----
+
+[
+  {
+    "model": "characters.background",
+    "pk": 1,
+    "fields": {
+      "name": "Bum",
+      "description": "A street-smart survivor who's lived on society's edges.",
+      "free_skill": "survive",
+      "is_default": true,
+      "version": "1.0.0",
+      "growth_table": {
+        "1": {"type": "ATTRIBUTE", "category": "ANY", "points": 1},
+        "2": {"type": "ATTRIBUTE", "category": "PHYSICAL", "points": 2},
+        "3": {"type": "ATTRIBUTE", "category": "PHYSICAL", "points": 2},
+        "4": {"type": "ATTRIBUTE", "category": "MENTAL", "points": 2},
+        "5": {"type": "SKILL", "name": "survive", "points": 1},
+        "6": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "learning_table": {
+        "1": {"type": "SKILL", "name": "any_combat", "points": 1},
+        "2": {"type": "SKILL", "name": "survive", "points": 1},
+        "3": {"type": "SKILL", "name": "connect", "points": 1},
+        "4": {"type": "SKILL", "name": "sneak", "points": 1},
+        "5": {"type": "SKILL", "name": "notice", "points": 1},
+        "6": {"type": "SKILL", "name": "talk", "points": 1},
+        "7": {"type": "SKILL", "name": "fix", "points": 1},
+        "8": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "manual_table": {
+        "1": {"type": "SKILL", "name": "punch", "points": 1},
+        "2": {"type": "SKILL", "name": "shoot", "points": 1},
+        "3": {"type": "SKILL", "name": "stab", "points": 1},
+        "4": {"type": "SKILL", "name": "survive", "points": 1},
+        "5": {"type": "SKILL", "name": "connect", "points": 1},
+        "6": {"type": "SKILL", "name": "sneak", "points": 1},
+        "7": {"type": "SKILL", "name": "notice", "points": 1},
+        "8": {"type": "SKILL", "name": "talk", "points": 1},
+        "9": {"type": "SKILL", "name": "fix", "points": 1},
+        "10": {"type": "SKILL", "name": "ANY", "points": 1}
+      }
+    }
+  },
+  {
+    "model": "characters.background",
+    "pk": 2,
+    "fields": {
+      "name": "Bureaucrat",
+      "description": "Placeholder",
+      "free_skill": "administer",
+      "is_default": true,
+      "version": "1.0.0",
+      "growth_table": {
+        "1": {"type": "ATTRIBUTE", "category": "ANY", "points": 1},
+        "2": {"type": "ATTRIBUTE", "category": "MENTAL", "points": 2},
+        "3": {"type": "ATTRIBUTE", "category": "MENTAL", "points": 2},
+        "4": {"type": "ATTRIBUTE", "category": "MENTAL", "points": 2},
+        "5": {"type": "SKILL", "name": "administer", "points": 1},
+        "6": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "learning_table": {
+        "1": {"type": "SKILL", "name": "administer", "points": 1},
+        "2": {"type": "SKILL", "name": "know", "points": 1},
+        "3": {"type": "SKILL", "name": "talk", "points": 1},
+        "4": {"type": "SKILL", "name": "program", "points": 1},
+        "5": {"type": "SKILL", "name": "lead", "points": 1},
+        "6": {"type": "SKILL", "name": "trade", "points": 1},
+        "7": {"type": "SKILL", "name": "notice", "points": 1},
+        "8": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "manual_table": {
+        "1": {"type": "SKILL", "name": "administer", "points": 1},
+        "2": {"type": "SKILL", "name": "know", "points": 1},
+        "3": {"type": "SKILL", "name": "talk", "points": 1},
+        "4": {"type": "SKILL", "name": "program", "points": 1},
+        "5": {"type": "SKILL", "name": "lead", "points": 1},
+        "6": {"type": "SKILL", "name": "trade", "points": 1},
+        "7": {"type": "SKILL", "name": "notice", "points": 1}
+      }
+    }
+  },
+  {
+    "model": "characters.background",
+    "pk": 3,
+    "fields": {
+      "name": "Clergy",
+      "description": "Placeholder",
+      "free_skill": "lead",
+      "is_default": true,
+      "version": "1.0.0",
+      "growth_table": {
+        "1": {"type": "ATTRIBUTE", "category": "ANY", "points": 1},
+        "2": {"type": "ATTRIBUTE", "category": "MENTAL", "points": 2},
+        "3": {"type": "ATTRIBUTE", "category": "MENTAL", "points": 2},
+        "4": {"type": "ATTRIBUTE", "category": "MENTAL", "points": 2},
+        "5": {"type": "SKILL", "name": "connect", "points": 1},
+        "6": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "learning_table": {
+        "1": {"type": "SKILL", "name": "lead", "points": 1},
+        "2": {"type": "SKILL", "name": "talk", "points": 1},
+        "3": {"type": "SKILL", "name": "connect", "points": 1},
+        "4": {"type": "SKILL", "name": "perform", "points": 1},
+        "5": {"type": "SKILL", "name": "know", "points": 1},
+        "6": {"type": "SKILL", "name": "heal", "points": 1},
+        "7": {"type": "SKILL", "name": "notice", "points": 1},
+        "8": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "manual_table": {
+        "1": {"type": "SKILL", "name": "lead", "points": 1},
+        "2": {"type": "SKILL", "name": "talk", "points": 1},
+        "3": {"type": "SKILL", "name": "connect", "points": 1},
+        "4": {"type": "SKILL", "name": "perform", "points": 1},
+        "5": {"type": "SKILL", "name": "know", "points": 1},
+        "6": {"type": "SKILL", "name": "heal", "points": 1},
+        "7": {"type": "SKILL", "name": "notice", "points": 1},
+        "8": {"type": "SKILL", "name": "ANY", "points": 1}
+      }
+    }
+  },
+  {
+    "model": "characters.background",
+    "pk": 4,
+    "fields": {
+      "name": "Coder",
+      "description": "A skilled programmer with a talent for solving complex problems.",
+      "free_skill": "program",
+      "is_default": true,
+      "version": "1.0.0",
+      "growth_table": {
+        "1": {"type": "ATTRIBUTE", "category": "ANY", "points": 1},
+        "2": {"type": "ATTRIBUTE", "category": "MENTAL", "points": 2},
+        "3": {"type": "ATTRIBUTE", "category": "MENTAL", "points": 2},
+        "4": {"type": "ATTRIBUTE", "category": "MENTAL", "points": 2},
+        "5": {"type": "SKILL", "name": "program", "points": 1},
+        "6": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "learning_table": {
+        "1": {"type": "SKILL", "name": "program", "points": 1},
+        "2": {"type": "SKILL", "name": "administer", "points": 1},
+        "3": {"type": "SKILL", "name": "fix", "points": 1},
+        "4": {"type": "SKILL", "name": "talk", "points": 1},
+        "5": {"type": "SKILL", "name": "connect", "points": 1},
+        "6": {"type": "SKILL", "name": "know", "points": 1},
+        "7": {"type": "SKILL", "name": "notice", "points": 1},
+        "8": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "manual_table": {
+        "1": {"type": "SKILL", "name": "program", "points": 1},
+        "2": {"type": "SKILL", "name": "administer", "points": 1},
+        "3": {"type": "SKILL", "name": "fix", "points": 1},
+        "4": {"type": "SKILL", "name": "talk", "points": 1},
+        "5": {"type": "SKILL", "name": "connect", "points": 1},
+        "6": {"type": "SKILL", "name": "know", "points": 1},
+        "7": {"type": "SKILL", "name": "notice", "points": 1}
+      }
+    }
+  },
+  {
+    "model": "characters.background",
+    "pk": 5,
+    "fields": {
+      "name": "Corp Security",
+      "description": "A corporate enforcer with training in combat and protection.",
+      "free_skill": "any_combat",
+      "is_default": true,
+      "version": "1.0.0",
+      "growth_table": {
+        "1": {"type": "ATTRIBUTE", "category": "ANY", "points": 1},
+        "2": {"type": "ATTRIBUTE", "category": "PHYSICAL", "points": 2},
+        "3": {"type": "ATTRIBUTE", "category": "PHYSICAL", "points": 2},
+        "4": {"type": "ATTRIBUTE", "category": "PHYSICAL", "points": 2},
+        "5": {"type": "SKILL", "name": "any_combat", "points": 1},
+        "6": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "learning_table": {
+        "1": {"type": "SKILL", "name": "any_combat", "points": 1},
+        "2": {"type": "SKILL", "name": "administer", "points": 1},
+        "3": {"type": "SKILL", "name": "connect", "points": 1},
+        "4": {"type": "SKILL", "name": "notice", "points": 1},
+        "5": {"type": "SKILL", "name": "exert", "points": 1},
+        "6": {"type": "SKILL", "name": "heal", "points": 1},
+        "7": {"type": "SKILL", "name": "sneak", "points": 1},
+        "8": {"type": "SKILL", "name": "lead", "points": 1}
+      },
+      "manual_table": {
+        "1": {"type": "SKILL", "name": "punch", "points": 1},
+        "2": {"type": "SKILL", "name": "shoot", "points": 1},
+        "3": {"type": "SKILL", "name": "stab", "points": 1},
+        "4": {"type": "SKILL", "name": "administer", "points": 1},
+        "5": {"type": "SKILL", "name": "connect", "points": 1},
+        "6": {"type": "SKILL", "name": "notice", "points": 1},
+        "7": {"type": "SKILL", "name": "exert", "points": 1},
+        "8": {"type": "SKILL", "name": "heal", "points": 1},
+        "9": {"type": "SKILL", "name": "sneak", "points": 1},
+        "10": {"type": "SKILL", "name": "lead", "points": 1}
+      }
+    }
+  },
+  {
+    "model": "characters.background",
+    "pk": 6,
+    "fields": {
+      "name": "Corper",
+      "description": "Placeholder",
+      "free_skill": "work",
+      "is_default": true,
+      "version": "1.0.0",
+      "growth_table": {
+        "1": {"type": "ATTRIBUTE", "category": "ANY", "points": 1},
+        "2": {"type": "ATTRIBUTE", "category": "ANY", "points": 1},
+        "3": {"type": "ATTRIBUTE", "category": "PHYSICAL", "points": 2},
+        "4": {"type": "ATTRIBUTE", "category": "MENTAL", "points": 2},
+        "5": {"type": "SKILL", "name": "ANY", "points": 1},
+        "6": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "learning_table": {
+        "1": {"type": "SKILL", "name": "work", "points": 1},
+        "2": {"type": "SKILL", "name": "talk", "points": 1},
+        "3": {"type": "SKILL", "name": "connect", "points": 1},
+        "4": {"type": "SKILL", "name": "any_combat", "points": 1},
+        "5": {"type": "SKILL", "name": "notice", "points": 1},
+        "6": {"type": "SKILL", "name": "sneak", "points": 1},
+        "7": {"type": "SKILL", "name": "fix", "points": 1},
+        "8": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "manual_table": {
+        "1": {"type": "SKILL", "name": "work", "points": 1},
+        "2": {"type": "SKILL", "name": "talk", "points": 1},
+        "3": {"type": "SKILL", "name": "connect", "points": 1},
+        "4": {"type": "SKILL", "name": "any_combat", "points": 1},
+        "5": {"type": "SKILL", "name": "notice", "points": 1},
+        "6": {"type": "SKILL", "name": "sneak", "points": 1},
+        "7": {"type": "SKILL", "name": "fix", "points": 1}
+      }
+    }
+  },
+  {
+    "model": "characters.background",
+    "pk": 7,
+    "fields": {
+      "name": "Criminal",
+      "description": "Placeholder.",
+      "free_skill": "sneak",
+      "is_default": true,
+      "version": "1.0.0",
+      "growth_table": {
+        "1": {"type": "ATTRIBUTE", "category": "ANY", "points": 1},
+        "2": {"type": "ATTRIBUTE", "category": "ANY", "points": 1},
+        "3": {"type": "ATTRIBUTE", "category": "PHYSICAL", "points": 2},
+        "4": {"type": "ATTRIBUTE", "category": "MENTAL", "points": 2},
+        "5": {"type": "SKILL", "name": "sneak", "points": 1},
+        "6": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "learning_table": {
+        "1": {"type": "SKILL", "name": "any_combat", "points": 1},
+        "2": {"type": "SKILL", "name": "sneak", "points": 1},
+        "3": {"type": "SKILL", "name": "notice", "points": 1},
+        "4": {"type": "SKILL", "name": "connect", "points": 1},
+        "5": {"type": "SKILL", "name": "talk", "points": 1},
+        "6": {"type": "SKILL", "name": "survive", "points": 1},
+        "7": {"type": "SKILL", "name": "exert", "points": 1},
+        "8": {"type": "SKILL", "name": "lead", "points": 1}
+      },
+      "manual_table": {
+        "1": {"type": "SKILL", "name": "punch", "points": 1},
+        "2": {"type": "SKILL", "name": "shoot", "points": 1},
+        "3": {"type": "SKILL", "name": "stab", "points": 1},
+        "4": {"type": "SKILL", "name": "sneak", "points": 1},
+        "5": {"type": "SKILL", "name": "notice", "points": 1},
+        "6": {"type": "SKILL", "name": "connect", "points": 1},
+        "7": {"type": "SKILL", "name": "talk", "points": 1},
+        "8": {"type": "SKILL", "name": "survive", "points": 1},
+        "9": {"type": "SKILL", "name": "exert", "points": 1},
+        "10": {"type": "SKILL", "name": "lead", "points": 1}
+      }
+    }
+  },
+  {
+    "model": "characters.background",
+    "pk": 8,
+    "fields": {
+      "name": "Doctor",
+      "description": "Placeholder",
+      "free_skill": "heal",
+      "is_default": true,
+      "version": "1.0.0",
+      "growth_table": {
+        "1": {"type": "ATTRIBUTE", "category": "ANY", "points": 1},
+        "2": {"type": "ATTRIBUTE", "category": "PHYSICAL", "points": 2},
+        "3": {"type": "ATTRIBUTE", "category": "MENTAL", "points": 2},
+        "4": {"type": "ATTRIBUTE", "category": "MENTAL", "points": 2},
+        "5": {"type": "SKILL", "name": "survive", "points": 1},
+        "6": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "learning_table": {
+        "1": {"type": "SKILL", "name": "heal", "points": 1},
+        "2": {"type": "SKILL", "name": "notice", "points": 1},
+        "3": {"type": "SKILL", "name": "know", "points": 1},
+        "4": {"type": "SKILL", "name": "talk", "points": 1},
+        "5": {"type": "SKILL", "name": "administer", "points": 1},
+        "6": {"type": "SKILL", "name": "connect", "points": 1},
+        "7": {"type": "SKILL", "name": "fix", "points": 1},
+        "8": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "manual_table": {
+        "1": {"type": "SKILL", "name": "heal", "points": 1},
+        "2": {"type": "SKILL", "name": "notice", "points": 1},
+        "3": {"type": "SKILL", "name": "know", "points": 1},
+        "4": {"type": "SKILL", "name": "talk", "points": 1},
+        "5": {"type": "SKILL", "name": "administer", "points": 1},
+        "6": {"type": "SKILL", "name": "connect", "points": 1},
+        "7": {"type": "SKILL", "name": "fix", "points": 1}
+      }}},
+      {
+    "model": "characters.background",
+    "pk": 9,
+    "fields": {
+      "name": "Drone Jockey",
+      "description": "Placeholder.",
+      "free_skill": "drive",
+      "is_default": true,
+      "version": "1.0.0",
+      "growth_table": {
+        "1": {"type": "ATTRIBUTE", "category": "ANY", "points": 1},
+        "2": {"type": "ATTRIBUTE", "category": "PHYSICAL", "points": 2},
+        "3": {"type": "ATTRIBUTE", "category": "PHYSICAL", "points": 2},
+        "4": {"type": "ATTRIBUTE", "category": "MENTAL", "points": 2},
+        "5": {"type": "SKILL", "name": "drive", "points": 1},
+        "6": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "learning_table": {
+        "1": {"type": "SKILL", "name": "drive", "points": 1},
+        "2": {"type": "SKILL", "name": "fix", "points": 1},
+        "3": {"type": "SKILL", "name": "shoot", "points": 1},
+        "4": {"type": "SKILL", "name": "notice", "points": 1},
+        "5": {"type": "SKILL", "name": "sneak", "points": 1},
+        "6": {"type": "SKILL", "name": "exert", "points": 1},
+        "7": {"type": "SKILL", "name": "program", "points": 1},
+        "8": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "manual_table": {
+        "1": {"type": "SKILL", "name": "drive", "points": 1},
+        "2": {"type": "SKILL", "name": "fix", "points": 1},
+        "3": {"type": "SKILL", "name": "shoot", "points": 1},
+        "4": {"type": "SKILL", "name": "notice", "points": 1},
+        "5": {"type": "SKILL", "name": "sneak", "points": 1},
+        "6": {"type": "SKILL", "name": "exert", "points": 1},
+        "7": {"type": "SKILL", "name": "program", "points": 1}
+      }
+    }
+  },
+  {
+    "model": "characters.background",
+    "pk": 10,
+    "fields": {
+      "name": "Ganger",
+      "description": "Placeholder",
+      "free_skill": "any_combat",
+      "is_default": true,
+      "version": "1.0.0",
+      "growth_table": {
+        "1": {"type": "ATTRIBUTE", "category": "ANY", "points": 1},
+        "2": {"type": "ATTRIBUTE", "category": "PHYSICAL", "points": 2},
+        "3": {"type": "ATTRIBUTE", "category": "PHYSICAL", "points": 2},
+        "4": {"type": "ATTRIBUTE", "category": "MENTAL", "points": 2},
+        "5": {"type": "SKILL", "name": "any_combat", "points": 1},
+        "6": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "learning_table": {
+        "1": {"type": "SKILL", "name": "any_combat", "points": 1},
+        "2": {"type": "SKILL", "name": "connect", "points": 1},
+        "3": {"type": "SKILL", "name": "survive", "points": 1},
+        "4": {"type": "SKILL", "name": "notice", "points": 1},
+        "5": {"type": "SKILL", "name": "sneak", "points": 1},
+        "6": {"type": "SKILL", "name": "talk", "points": 1},
+        "7": {"type": "SKILL", "name": "fix", "points": 1},
+        "8": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "manual_table": {
+        "1": {"type": "SKILL", "name": "punch", "points": 1},
+        "2": {"type": "SKILL", "name": "shoot", "points": 1},
+        "3": {"type": "SKILL", "name": "stab", "points": 1},
+        "4": {"type": "SKILL", "name": "connect", "points": 1},
+        "5": {"type": "SKILL", "name": "survive", "points": 1},
+        "6": {"type": "SKILL", "name": "notice", "points": 1},
+        "7": {"type": "SKILL", "name": "sneak", "points": 1},
+        "8": {"type": "SKILL", "name": "talk", "points": 1},
+        "9": {"type": "SKILL", "name": "fix", "points": 1}
+      }
+    }
+  },
+  {
+    "model": "characters.background",
+    "pk": 11,
+    "fields": {
+      "name": "Laborer",
+      "description": "Placeholder.",
+      "free_skill": "exert",
+      "is_default": true,
+      "version": "1.0.0",
+      "growth_table": {
+        "1": {"type": "ATTRIBUTE", "category": "ANY", "points": 1},
+        "2": {"type": "ATTRIBUTE", "category": "PHYSICAL", "points": 2},
+        "3": {"type": "ATTRIBUTE", "category": "PHYSICAL", "points": 2},
+        "4": {"type": "ATTRIBUTE", "category": "PHYSICAL", "points": 2},
+        "5": {"type": "SKILL", "name": "exert", "points": 1},
+        "6": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "learning_table": {
+        "1": {"type": "SKILL", "name": "exert", "points": 1},
+        "2": {"type": "SKILL", "name": "work", "points": 1},
+        "3": {"type": "SKILL", "name": "sneak", "points": 1},
+        "4": {"type": "SKILL", "name": "trade", "points": 1},
+        "5": {"type": "SKILL", "name": "survive", "points": 1},
+        "6": {"type": "SKILL", "name": "fix", "points": 1},
+        "7": {"type": "SKILL", "name": "any_combat", "points": 1},
+        "8": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "manual_table": {
+        "1": {"type": "SKILL", "name": "punch", "points": 1},
+        "2": {"type": "SKILL", "name": "shoot", "points": 1},
+        "3": {"type": "SKILL", "name": "stab", "points": 1},
+        "4": {"type": "SKILL", "name": "exert", "points": 1},
+        "5": {"type": "SKILL", "name": "work", "points": 1},
+        "6": {"type": "SKILL", "name": "sneak", "points": 1},
+        "7": {"type": "SKILL", "name": "trade", "points": 1},
+        "8": {"type": "SKILL", "name": "survive", "points": 1},
+        "9": {"type": "SKILL", "name": "fix", "points": 1}
+      }
+    }
+  },
+  {
+    "model": "characters.background",
+    "pk": 12,
+    "fields": {
+      "name": "Law Enforcement",
+      "description": "Placeholder.",
+      "free_skill": "administer",
+      "is_default": true,
+      "version": "1.0.0",
+      "growth_table": {
+        "1": {"type": "ATTRIBUTE", "category": "ANY", "points": 1},
+        "2": {"type": "ATTRIBUTE", "category": "PHYSICAL", "points": 2},
+        "3": {"type": "ATTRIBUTE", "category": "PHYSICAL", "points": 2},
+        "4": {"type": "ATTRIBUTE", "category": "MENTAL", "points": 2},
+        "5": {"type": "SKILL", "name": "administer", "points": 1},
+        "6": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "learning_table": {
+        "1": {"type": "SKILL", "name": "administer", "points": 1},
+        "2": {"type": "SKILL", "name": "any_combat", "points": 1},
+        "3": {"type": "SKILL", "name": "notice", "points": 1},
+        "4": {"type": "SKILL", "name": "sneak", "points": 1},
+        "5": {"type": "SKILL", "name": "talk", "points": 1},
+        "6": {"type": "SKILL", "name": "connect", "points": 1},
+        "7": {"type": "SKILL", "name": "heal", "points": 1},
+        "8": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "manual_table": {
+        "1": {"type": "SKILL", "name": "punch", "points": 1},
+        "2": {"type": "SKILL", "name": "shoot", "points": 1},
+        "3": {"type": "SKILL", "name": "stab", "points": 1},
+        "4": {"type": "SKILL", "name": "administer", "points": 1},
+        "5": {"type": "SKILL", "name": "notice", "points": 1},
+        "6": {"type": "SKILL", "name": "sneak", "points": 1},
+        "7": {"type": "SKILL", "name": "talk", "points": 1},
+        "8": {"type": "SKILL", "name": "connect", "points": 1},
+        "9": {"type": "SKILL", "name": "heal", "points": 1}
+      }
+    }
+  },
+  {
+    "model": "characters.background",
+    "pk": 13,
+    "fields": {
+      "name": "Manager",
+      "description": "Placeholder.",
+      "free_skill": "administer",
+      "is_default": true,
+      "version": "1.0.0",
+      "growth_table": {
+        "1": {"type": "ATTRIBUTE", "category": "ANY", "points": 1},
+        "2": {"type": "ATTRIBUTE", "category": "MENTAL", "points": 2},
+        "3": {"type": "ATTRIBUTE", "category": "MENTAL", "points": 2},
+        "4": {"type": "ATTRIBUTE", "category": "MENTAL", "points": 2},
+        "5": {"type": "SKILL", "name": "administer", "points": 1},
+        "6": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "learning_table": {
+        "1": {"type": "SKILL", "name": "administer", "points": 1},
+        "2": {"type": "SKILL", "name": "talk", "points": 1},
+        "3": {"type": "SKILL", "name": "trade", "points": 1},
+        "4": {"type": "SKILL", "name": "connect", "points": 1},
+        "5": {"type": "SKILL", "name": "notice", "points": 1},
+        "6": {"type": "SKILL", "name": "lead", "points": 1},
+        "7": {"type": "SKILL", "name": "program", "points": 1},
+        "8": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "manual_table": {
+        "1": {"type": "SKILL", "name": "administer", "points": 1},
+        "2": {"type": "SKILL", "name": "talk", "points": 1},
+        "3": {"type": "SKILL", "name": "trade", "points": 1},
+        "4": {"type": "SKILL", "name": "connect", "points": 1},
+        "5": {"type": "SKILL", "name": "notice", "points": 1},
+        "6": {"type": "SKILL", "name": "lead", "points": 1},
+        "7": {"type": "SKILL", "name": "program", "points": 1}
+      }
+    }
+  },
+  {
+    "model": "characters.background",
+    "pk": 14,
+    "fields": {
+      "name": "Outlander",
+      "description": "Placeholder.",
+      "free_skill": "survive",
+      "is_default": true,
+      "version": "1.0.0",
+      "growth_table": {
+        "1": {"type": "ATTRIBUTE", "category": "ANY", "points": 1},
+        "2": {"type": "ATTRIBUTE", "category": "MENTAL", "points": 2},
+        "3": {"type": "ATTRIBUTE", "category": "PHYSICAL", "points": 2},
+        "4": {"type": "ATTRIBUTE", "category": "PHYSICAL", "points": 2},
+        "5": {"type": "SKILL", "name": "survive", "points": 1},
+        "6": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "learning_table": {
+        "1": {"type": "SKILL", "name": "survive", "points": 1},
+        "2": {"type": "SKILL", "name": "drive", "points": 1},
+        "3": {"type": "SKILL", "name": "fix", "points": 1},
+        "4": {"type": "SKILL", "name": "trade", "points": 1},
+        "5": {"type": "SKILL", "name": "sneak", "points": 1},
+        "6": {"type": "SKILL", "name": "connect", "points": 1},
+        "7": {"type": "SKILL", "name": "any_combat", "points": 1},
+        "8": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "manual_table": {
+        "1": {"type": "SKILL", "name": "punch", "points": 1},
+        "2": {"type": "SKILL", "name": "shoot", "points": 1},
+        "3": {"type": "SKILL", "name": "stab", "points": 1},
+        "4": {"type": "SKILL", "name": "survive", "points": 1},
+        "5": {"type": "SKILL", "name": "drive", "points": 1},
+        "6": {"type": "SKILL", "name": "fix", "points": 1},
+        "7": {"type": "SKILL", "name": "trade", "points": 1},
+        "8": {"type": "SKILL", "name": "sneak", "points": 1},
+        "9": {"type": "SKILL", "name": "connect", "points": 1}
+      }
+    }
+  },
+  {
+    "model": "characters.background",
+    "pk": 15,
+    "fields": {
+      "name": "Performer",
+      "description": "Placeholder.",
+      "free_skill": "perform",
+      "is_default": true,
+      "version": "1.0.0",
+      "growth_table": {
+        "1": {"type": "ATTRIBUTE", "category": "ANY", "points": 1},
+        "2": {"type": "ATTRIBUTE", "category": "ANY", "points": 2},
+        "3": {"type": "ATTRIBUTE", "category": "MENTAL", "points": 2},
+        "4": {"type": "ATTRIBUTE", "category": "PHYSICAL", "points": 2},
+        "5": {"type": "SKILL", "name": "perform", "points": 1},
+        "6": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "learning_table": {
+        "1": {"type": "SKILL", "name": "perform", "points": 1},
+        "2": {"type": "SKILL", "name": "lead", "points": 1},
+        "3": {"type": "SKILL", "name": "connect", "points": 1},
+        "4": {"type": "SKILL", "name": "talk", "points": 1},
+        "5": {"type": "SKILL", "name": "trade", "points": 1},
+        "6": {"type": "SKILL", "name": "sneak", "points": 1},
+        "7": {"type": "SKILL", "name": "any_combat", "points": 1},
+        "8": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "manual_table": {
+        "1": {"type": "SKILL", "name": "punch", "points": 1},
+        "2": {"type": "SKILL", "name": "shoot", "points": 1},
+        "3": {"type": "SKILL", "name": "stab", "points": 1},
+        "4": {"type": "SKILL", "name": "perform", "points": 1},
+        "5": {"type": "SKILL", "name": "lead", "points": 1},
+        "6": {"type": "SKILL", "name": "connect", "points": 1},
+        "7": {"type": "SKILL", "name": "talk", "points": 1},
+        "8": {"type": "SKILL", "name": "trade", "points": 1},
+        "9": {"type": "SKILL", "name": "sneak", "points": 1}
+      }
+    }
+  },
+  {
+    "model": "characters.background",
+    "pk": 16,
+    "fields": {
+      "name": "Soldier",
+      "description": "Placeholder.",
+      "free_skill": "any_combat",
+      "is_default": true,
+      "version": "1.0.0",
+      "growth_table": {
+        "1": {"type": "ATTRIBUTE", "category": "ANY", "points": 1},
+        "2": {"type": "ATTRIBUTE", "category": "MENTAL", "points": 2},
+        "3": {"type": "ATTRIBUTE", "category": "PHYSICAL", "points": 2},
+        "4": {"type": "ATTRIBUTE", "category": "PHYSICAL", "points": 2},
+        "5": {"type": "SKILL", "name": "any_combat", "points": 1},
+        "6": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "learning_table": {
+        "1": {"type": "SKILL", "name": "any_combat", "points": 1},
+        "2": {"type": "SKILL", "name": "exert", "points": 1},
+        "3": {"type": "SKILL", "name": "lead", "points": 1},
+        "4": {"type": "SKILL", "name": "notice", "points": 1},
+        "5": {"type": "SKILL", "name": "survive", "points": 1},
+        "6": {"type": "SKILL", "name": "heal", "points": 1},
+        "7": {"type": "SKILL", "name": "administer", "points": 1},
+        "8": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "manual_table": {
+        "1": {"type": "SKILL", "name": "punch", "points": 1},
+        "2": {"type": "SKILL", "name": "shoot", "points": 1},
+        "3": {"type": "SKILL", "name": "stab", "points": 1},
+        "4": {"type": "SKILL", "name": "exert", "points": 1},
+        "5": {"type": "SKILL", "name": "lead", "points": 1},
+        "6": {"type": "SKILL", "name": "notice", "points": 1},
+        "7": {"type": "SKILL", "name": "survive", "points": 1},
+        "8": {"type": "SKILL", "name": "heal", "points": 1},
+        "9": {"type": "SKILL", "name": "administer", "points": 1}
+      }}},
+      {
+    "model": "characters.background",
+    "pk": 17,
+    "fields": {
+      "name": "Spy",
+      "description": "Placeholder.",
+      "free_skill": "sneak",
+      "is_default": true,
+      "version": "1.0.0",
+      "growth_table": {
+        "1": {"type": "ATTRIBUTE", "category": "ANY", "points": 1},
+        "2": {"type": "ATTRIBUTE", "category": "ANY", "points": 2},
+        "3": {"type": "ATTRIBUTE", "category": "MENTAL", "points": 2},
+        "4": {"type": "ATTRIBUTE", "category": "PHYSICAL", "points": 2},
+        "5": {"type": "SKILL", "name": "sneak", "points": 1},
+        "6": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "learning_table": {
+        "1": {"type": "SKILL", "name": "sneak", "points": 1},
+        "2": {"type": "SKILL", "name": "notice", "points": 1},
+        "3": {"type": "SKILL", "name": "talk", "points": 1},
+        "4": {"type": "SKILL", "name": "connect", "points": 1},
+        "5": {"type": "SKILL", "name": "program", "points": 1},
+        "6": {"type": "SKILL", "name": "exert", "points": 1},
+        "7": {"type": "SKILL", "name": "any_combat", "points": 1},
+        "8": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "manual_table": {
+        "1": {"type": "SKILL", "name": "punch", "points": 1},
+        "2": {"type": "SKILL", "name": "shoot", "points": 1},
+        "3": {"type": "SKILL", "name": "stab", "points": 1},
+        "4": {"type": "SKILL", "name": "sneak", "points": 1},
+        "5": {"type": "SKILL", "name": "notice", "points": 1},
+        "6": {"type": "SKILL", "name": "talk", "points": 1},
+        "7": {"type": "SKILL", "name": "connect", "points": 1},
+        "8": {"type": "SKILL", "name": "program", "points": 1},
+        "9": {"type": "SKILL", "name": "exert", "points": 1}
+      }
+    }
+  },
+  {
+    "model": "characters.background",
+    "pk": 18,
+    "fields": {
+      "name": "Trader",
+      "description": "Placeholder.",
+      "free_skill": "trade",
+      "is_default": true,
+      "version": "1.0.0",
+      "growth_table": {
+        "1": {"type": "ATTRIBUTE", "category": "ANY", "points": 1},
+        "2": {"type": "ATTRIBUTE", "category": "MENTAL", "points": 2},
+        "3": {"type": "ATTRIBUTE", "category": "MENTAL", "points": 2},
+        "4": {"type": "ATTRIBUTE", "category": "PHYSICAL", "points": 2},
+        "5": {"type": "SKILL", "name": "trade", "points": 1},
+        "6": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "learning_table": {
+        "1": {"type": "SKILL", "name": "trade", "points": 1},
+        "2": {"type": "SKILL", "name": "notice", "points": 1},
+        "3": {"type": "SKILL", "name": "connect", "points": 1},
+        "4": {"type": "SKILL", "name": "fix", "points": 1},
+        "5": {"type": "SKILL", "name": "talk", "points": 1},
+        "6": {"type": "SKILL", "name": "administer", "points": 1},
+        "7": {"type": "SKILL", "name": "any_combat", "points": 1},
+        "8": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "manual_table": {
+        "1": {"type": "SKILL", "name": "punch", "points": 1},
+        "2": {"type": "SKILL", "name": "shoot", "points": 1},
+        "3": {"type": "SKILL", "name": "stab", "points": 1},
+        "4": {"type": "SKILL", "name": "trade", "points": 1},
+        "5": {"type": "SKILL", "name": "notice", "points": 1},
+        "6": {"type": "SKILL", "name": "connect", "points": 1},
+        "7": {"type": "SKILL", "name": "fix", "points": 1},
+        "8": {"type": "SKILL", "name": "talk", "points": 1},
+        "9": {"type": "SKILL", "name": "administer", "points": 1}
+      }
+    }
+  },
+  {
+    "model": "characters.background",
+    "pk": 19,
+    "fields": {
+      "name": "Streetwalker",
+      "description": "Placeholder.",
+      "free_skill": "talk",
+      "is_default": true,
+      "version": "1.0.0",
+      "growth_table": {
+        "1": {"type": "ATTRIBUTE", "category": "ANY", "points": 1},
+        "2": {"type": "ATTRIBUTE", "category": "ANY", "points": 2},
+        "3": {"type": "ATTRIBUTE", "category": "PHYSICAL", "points": 2},
+        "4": {"type": "ATTRIBUTE", "category": "MENTAL", "points": 2},
+        "5": {"type": "SKILL", "name": "talk", "points": 1},
+        "6": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "learning_table": {
+        "1": {"type": "SKILL", "name": "talk", "points": 1},
+        "2": {"type": "SKILL", "name": "perform", "points": 1},
+        "3": {"type": "SKILL", "name": "connect", "points": 1},
+        "4": {"type": "SKILL", "name": "trade", "points": 1},
+        "5": {"type": "SKILL", "name": "sneak", "points": 1},
+        "6": {"type": "SKILL", "name": "notice", "points": 1},
+        "7": {"type": "SKILL", "name": "heal", "points": 1},
+        "8": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "manual_table": {
+        "1": {"type": "SKILL", "name": "talk", "points": 1},
+        "2": {"type": "SKILL", "name": "perform", "points": 1},
+        "3": {"type": "SKILL", "name": "connect", "points": 1},
+        "4": {"type": "SKILL", "name": "trade", "points": 1},
+        "5": {"type": "SKILL", "name": "sneak", "points": 1},
+        "6": {"type": "SKILL", "name": "notice", "points": 1},
+        "7": {"type": "SKILL", "name": "heal", "points": 1}
+      }
+    }
+  },
+  {
+    "model": "characters.background",
+    "pk": 20,
+    "fields": {
+      "name": "Technician",
+      "description": "Placeholder.",
+      "free_skill": "fix",
+      "is_default": true,
+      "version": "1.0.0",
+      "growth_table": {
+        "1": {"type": "ATTRIBUTE", "category": "ANY", "points": 1},
+        "2": {"type": "ATTRIBUTE", "category": "PHYSICAL", "points": 2},
+        "3": {"type": "ATTRIBUTE", "category": "MENTAL", "points": 2},
+        "4": {"type": "ATTRIBUTE", "category": "MENTAL", "points": 2},
+        "5": {"type": "SKILL", "name": "fix", "points": 1},
+        "6": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "learning_table": {
+        "1": {"type": "SKILL", "name": "fix", "points": 1},
+        "2": {"type": "SKILL", "name": "program", "points": 1},
+        "3": {"type": "SKILL", "name": "exert", "points": 1},
+        "4": {"type": "SKILL", "name": "trade", "points": 1},
+        "5": {"type": "SKILL", "name": "notice", "points": 1},
+        "6": {"type": "SKILL", "name": "connect", "points": 1},
+        "7": {"type": "SKILL", "name": "drive", "points": 1},
+        "8": {"type": "SKILL", "name": "ANY", "points": 1}
+      },
+      "manual_table": {
+        "1": {"type": "SKILL", "name": "fix", "points": 1},
+        "2": {"type": "SKILL", "name": "program", "points": 1},
+        "3": {"type": "SKILL", "name": "exert", "points": 1},
+        "4": {"type": "SKILL", "name": "trade", "points": 1},
+        "5": {"type": "SKILL", "name": "notice", "points": 1},
+        "6": {"type": "SKILL", "name": "connect", "points": 1},
+        "7": {"type": "SKILL", "name": "drive", "points": 1}
+      }
+    }
+  }
+
+
+]
+
+
+----- .\server\characters\fixtures\initial_skills.json -----
 
 [
     {
@@ -1591,6 +3000,54 @@ class CharacterViewSet(viewsets.ModelViewSet):
         }
     }
 ]
+
+----- .\server\characters\services\modifiers.py -----
+
+# server/characters/services/modifiers.py
+from characters.models import CharacterSkill, Skill
+
+for mod in modifiers:
+    if mod['modifier_type'] == 'ATTRIBUTE':
+        category = mod.get('category', '').upper()
+        points = mod.get('points', 0)
+
+        # Skip auto-assignment for user-chosen categories
+        if category in ['ANY', 'PHYSICAL', 'MENTAL']:
+            # We do nothing here; the front-end handles distribution
+            pass
+        else:
+            # Example: If the category is a specific attribute like 'STRENGTH'
+            # you might do something like this:
+            #
+            # if category == 'STRENGTH':
+            #     current_val = character.strength
+            #     new_val = min(current_val + points, 18)
+            #     character.strength = new_val
+            #
+            # (Repeat as needed for other specific attribute categories.)
+            pass
+        elif mod['modifier_type'] == 'SKILL':
+            skill_name = mod.get('skill_name')
+            if not skill_name:
+                continue  # Skip if no skill is specified.
+            try:
+                skill_obj = Skill.objects.get(name__iexact=skill_name)
+            except Skill.DoesNotExist:
+                continue  # Alternatively, you could raise an error.
+
+            cs = CharacterSkill.objects.filter(character=character, skill=skill_obj).first()
+            bonus_points = mod.get('points', 0)
+            if cs is None:
+                # Award bonus: if bonus is 1, create with level 0; if bonus >= 2, create with level 1.
+                initial_level = 0 if bonus_points == 1 else 1
+                CharacterSkill.objects.create(character=character, skill=skill_obj, level=initial_level)
+            else:
+                # Upgrade if possible, but cap at level 1 during creation.
+                if cs.level == 0 and bonus_points >= 1:
+                    cs.level = 1
+                    cs.save()
+    character.save()
+
 
 ----- .\server\users\admin.py -----
 
@@ -1862,7 +3319,7 @@ CORS_ALLOW_CREDENTIALS = True
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework import routers
-from characters.views import CharacterViewSet, SkillViewSet
+from characters.views import CharacterViewSet, SkillViewSet, BackgroundViewSet
 from users.views import UserRegistrationView, user_roles  # <-- Import from users app
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
@@ -1873,6 +3330,7 @@ from users.views import user_roles
 router = routers.DefaultRouter()
 router.register(r'characters', CharacterViewSet, basename='characters')
 router.register(r'skills', SkillViewSet, basename='skills')
+router.register(r'backgrounds', BackgroundViewSet, basename='backgrounds')
 
 urlpatterns = [
     path('admin/', admin.site.urls),

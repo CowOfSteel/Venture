@@ -1,18 +1,12 @@
-from rest_framework import viewsets, permissions
-from .models import Character
-from .serializers import CharacterSerializer, BackgroundSerializer
-from .models import Skill, Background, CharacterSkill
-from .serializers import SkillSerializer
-from rest_framework import serializers
+from rest_framework import viewsets, permissions, serializers
 from rest_framework.response import Response
+from .models import Character, Background, Skill, CharacterSkill
+from .serializers import CharacterSerializer, BackgroundSerializer, SkillSerializer
+from .services.modifiers import apply_modifiers
+
 
 def apply_background_selection(character, selection):
-    """
-    Processes the background_selection payload and applies:
-      - the chosen background,
-      - the free skill,
-      - additional skill picks or attribute bonuses from the 'results' list.
-    """
+    # Assign the selected background.
     background_id = selection.get('background_id')
     try:
         background = Background.objects.get(id=background_id)
@@ -20,49 +14,83 @@ def apply_background_selection(character, selection):
         raise serializers.ValidationError("Invalid background_id provided.")
     character.background = background
 
-    # --- Apply the free skill from the background ---
+    # Apply free skill:
     free_skill_name = background.free_skill
     try:
-        skill = Skill.objects.get(name__iexact=free_skill_name)
+        free_skill = Skill.objects.get(name__iexact=free_skill_name)
     except Skill.DoesNotExist:
         raise serializers.ValidationError("The free skill defined in the background does not exist.")
-    # Create or upgrade the free skill for the character:
-    cs, created = CharacterSkill.objects.get_or_create(character=character, skill=skill, defaults={'level': 0})
-    if not created and cs.level < 1:
-        cs.level = 1
-        cs.save()
+    free_cs, created = CharacterSkill.objects.get_or_create(
+        character=character,
+        skill=free_skill,
+        defaults={'level': 0}
+    )
+    if free_cs.level < 1:
+        free_cs.level = 1
+        free_cs.save()
 
-    # --- Process additional background results (rolls or manual picks) ---
-    # This loop assumes each item in results is a dict with a "type" key.
-    results = selection.get('results', [])
+    # Process additional results (roll-based or manual).
+    if selection.get('mode') == 'roll':
+        results = selection.get('results', [])
+    else:
+        results = selection.get('manual_choices', [])
+
+    # Convert each result into a modifier dict.
+    modifiers = []
     for item in results:
-        item_type = item.get('type')
-        if item_type == "SKILL":
-            skill_name = item.get('name')
-            try:
-                skill = Skill.objects.get(name__iexact=skill_name)
-            except Skill.DoesNotExist:
-                continue  # Skip if the skill doesn't exist
-            cs, created = CharacterSkill.objects.get_or_create(character=character, skill=skill, defaults={'level': 0})
-            if not created and cs.level < 1:
-                cs.level = 1
-                cs.save()
-        elif item_type == "ATTRIBUTE":
-            # For now, we’ll simply store attribute bonus details in creation_data.
-            # Later, you can expand this to update character attributes directly.
-            # Example: {"type": "ATTRIBUTE", "category": "PHYSICAL", "points": 2}
-            pass  # TODO: Implement attribute bonus handling
+        if item.get('type') == "ATTRIBUTE":
+            modifiers.append({
+                'modifier_type': "ATTRIBUTE",
+                'category': item.get('category'),
+                'points': item.get('points', 0),
+                # No assignment here; bonus_distribution will handle the split.
+            })
+        elif item.get('type') == "SKILL":
+            modifiers.append({
+                'modifier_type': "SKILL",
+                'skill_name': item.get('name'),
+                'points': item.get('points', 0),
+            })
+    # Apply the standard modifiers.
+    apply_modifiers(character, modifiers)
 
-    # --- Save the detailed selection in creation_data for traceability ---
+    # NEW: Process bonus distribution if provided.
+    bonus_distribution = selection.get('bonus_distribution')
+    if bonus_distribution:
+        for bonus in bonus_distribution:
+            category = bonus.get('category', '').upper()
+            assignments = bonus.get('assigned_attributes', {})
+            bonus_points = bonus.get('points', 0)
+            if sum(assignments.values()) != bonus_points:
+                raise serializers.ValidationError("Total bonus assignment does not match bonus points.")
+            for attr, pts in assignments.items():
+                allowed_attrs = []
+                if category == 'ANY':
+                    allowed_attrs = ['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma']
+                elif category == 'PHYSICAL':
+                    allowed_attrs = ['strength', 'dexterity', 'constitution']
+                elif category == 'MENTAL':
+                    allowed_attrs = ['intelligence', 'wisdom', 'charisma']
+                if attr not in allowed_attrs:
+                    raise serializers.ValidationError(f"Invalid attribute assignment: {attr} for category {category}.")
+                current_val = getattr(character, attr)
+                if current_val + pts > 18:
+                    raise serializers.ValidationError(f"Assignment would exceed attribute cap for {attr}.")
+                setattr(character, attr, current_val + pts)
+
+    # Save the creation_data for traceability.
     creation_data = character.creation_data or {}
     creation_data['background_selection'] = selection
+    creation_data['background_completed'] = True
     character.creation_data = creation_data
     character.save()
+
 
 class SkillViewSet(viewsets.ModelViewSet):
     queryset = Skill.objects.all()
     serializer_class = SkillSerializer
     permission_classes = [permissions.IsAuthenticated]
+
 
 class CharacterViewSet(viewsets.ModelViewSet):
     queryset = Character.objects.all()
@@ -73,24 +101,47 @@ class CharacterViewSet(viewsets.ModelViewSet):
         serializer.save(user=self.request.user)
 
     def get_queryset(self):
-        # If user is staff, return all
         if self.request.user.is_staff:
             return super().get_queryset()
-        # Otherwise, limit to just user's own characters
         return super().get_queryset().filter(user=self.request.user)
 
     def update(self, request, *args, **kwargs):
-        # Extract and remove background_selection from request.data if it exists.
         background_selection = request.data.pop('background_selection', None)
-        response = super().update(request, *args, **kwargs)
+        character = self.get_object()
+
+        # First, update any other fields provided.
+        serializer = self.get_serializer(character, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+
+        # Then, if background_selection is provided, apply it.
         if background_selection:
-            # Apply the background selection to the updated character instance.
-            character = self.get_object()
-            apply_background_selection(character, background_selection)
-        return response
+            try:
+                apply_background_selection(character, background_selection)
+            except serializers.ValidationError as e:
+                return Response({"detail": e.detail}, status=400)
+            # Reload serializer to reflect background changes.
+            serializer = self.get_serializer(character)
+
+        return Response(serializer.data)
+
+        # Otherwise, update other fields then apply background_selection.
+        serializer = self.get_serializer(character, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+
+        if background_selection:
+            try:
+                apply_background_selection(character, background_selection)
+            except serializers.ValidationError as e:
+                return Response({"detail": e.detail}, status=400)
+            # Reload serializer data to include background changes.
+            serializer = self.get_serializer(character)
+
+        return Response(serializer.data)
+
 
 class BackgroundViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Background.objects.all()
     serializer_class = BackgroundSerializer
     permission_classes = [permissions.IsAuthenticated]
-

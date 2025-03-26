@@ -86,3 +86,23 @@ class CharacterSkill(models.Model):
         # If a CharacterSkill record exists, its effective modifier is simply the stored level.
         return self.level
 
+class Modifier(models.Model):
+    MODIFIER_TYPE_CHOICES = [
+        ('ATTRIBUTE', 'Attribute'),
+        ('SKILL', 'Skill'),
+    ]
+    # Indicates the source of the modifier (e.g., 'Background', 'Edge', 'Focus')
+    source = models.CharField(max_length=50)
+    # ID of the source record (for traceability)
+    source_id = models.IntegerField()
+    modifier_type = models.CharField(max_length=20, choices=MODIFIER_TYPE_CHOICES)
+    # For ATTRIBUTE type, you can indicate the category (e.g., "PHYSICAL", "MENTAL", or "ANY")
+    category = models.CharField(max_length=20, blank=True, null=True)
+    # For SKILL type, the specific skill name if applicable (e.g., "Punch", "Shoot")
+    skill_name = models.CharField(max_length=50, blank=True, null=True)
+    # How many points to add (usually 1 or 2)
+    points = models.IntegerField(default=0)
+
+    def __str__(self):
+        return f"{self.source} (ID: {self.source_id}) - {self.modifier_type}: {self.points}"
+

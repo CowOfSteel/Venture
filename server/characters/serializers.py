@@ -3,7 +3,7 @@ from .models import Character, CharacterSkill, Skill, Background
 
 
 class CharacterSkillSerializer(serializers.ModelSerializer):
-    effective_modifier = serializers.IntegerField(source='effective_modifier', read_only=True)
+    effective_modifier = serializers.IntegerField
 
     class Meta:
         model = CharacterSkill
