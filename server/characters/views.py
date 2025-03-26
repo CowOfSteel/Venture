@@ -1,18 +1,20 @@
 from rest_framework import viewsets, permissions, serializers
 from rest_framework.response import Response
 from .models import Character, Background, Skill, CharacterSkill, Contact, Edge, CharacterEdge
-from .serializers import CharacterSerializer, BackgroundSerializer, SkillSerializer, ContactSerializer, EdgeSerializer
+from .serializers import (
+    CharacterSerializer,
+    BackgroundSerializer,
+    SkillSerializer,
+    ContactSerializer,
+    EdgeSerializer
+)
 from .services.modifiers import apply_modifiers
 
 def apply_edge_selection(character, selection):
     """
     Applies the chosen edge selection to the given character.
     Expects 'selection' to be a dictionary with an "edges" key containing a list
-    of objects with: { id, rank, any_skill_choice } and an optional key "used_underdog".
-    For each edge:
-      - Creates a CharacterEdge record.
-      - Applies immediate effects (e.g., GRANT_SKILL, MOD_FORMULA, MOD_TRAUMA_TARGET)
-        via our apply_modifiers function or by storing values in character.creation_data.
+    of objects with: { id, rank, any_skill_choice } and an optional used_underdog flag.
     """
     edges_list = selection.get("edges")
     if edges_list is None:
@@ -64,15 +66,14 @@ def apply_edge_selection(character, selection):
                     creation_data.setdefault('trauma_target_mod', 0)
                     creation_data['trauma_target_mod'] += effect.get("amount", 0)
                     character.creation_data = creation_data
-                # (Add additional effect types here as needed.)
-    # If the selection payload indicates used_underdog, store that flag.
+                # (Additional effect types can be handled here.)
+    # Store the used_underdog flag if provided
     if selection.get("used_underdog"):
         creation_data = character.creation_data or {}
         creation_data['used_underdog'] = True
         character.creation_data = creation_data
 
     character.save()
-
 
 def apply_background_selection(character, selection):
     # Assign the selected background.
@@ -178,4 +179,32 @@ class CharacterViewSet(viewsets.ModelViewSet):
         character = self.get_object()
 
         # Update the character with other fields (including contacts payload if provided)
-        serializer = self.get
+        serializer = self.get_serializer(character, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+
+        if background_selection:
+            try:
+                apply_background_selection(character, background_selection)
+            except serializers.ValidationError as e:
+                return Response({"detail": e.detail}, status=400)
+            serializer = self.get_serializer(character)
+
+        if edge_selection:
+            try:
+                apply_edge_selection(character, edge_selection)
+            except serializers.ValidationError as e:
+                return Response({"detail": e.detail}, status=400)
+            serializer = self.get_serializer(character)
+
+        return Response(serializer.data)
+
+class BackgroundViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Background.objects.all()
+    serializer_class = BackgroundSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+class EdgeViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Edge.objects.all()
+    serializer_class = EdgeSerializer
+    permission_classes = [permissions.IsAuthenticated]

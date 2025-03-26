@@ -63,6 +63,9 @@ import NewCharacterChoice from './components/NewCharacterChoice';
 import BackgroundCreation from './components/BackgroundCreation';
 import Contacts from './components/Contacts';
 import Edges from './components/Edges';
+import EdgeSelection from './components/EdgeSelection';
+import FocusSelection from './components/FocusSelection';
+
 
 function App() {
   return (
@@ -81,8 +84,8 @@ function App() {
             <Route path="/characters/:id/backgrounds" element={<ProtectedRoute><BackgroundCreation /></ProtectedRoute>} />
             <Route path="/edges" element={<ProtectedRoute><Edges /></ProtectedRoute>} />
             <Route path="/characters/:id/contacts" element={<ProtectedRoute><Contacts /></ProtectedRoute>} />
-
-            {/* Moved this route correctly inside the Layout */}
+            <Route path="/characters/:id/edges" element={<ProtectedRoute><EdgeSelection /></ProtectedRoute>} />
+            <Route path="/characters/:id/foci" element={<ProtectedRoute><FocusSelection /></ProtectedRoute>} />
             <Route path="/characters/:id" element={<ProtectedRoute><ViewCharacter /></ProtectedRoute>} />
 
             {/* Public routes */}
@@ -1253,6 +1256,246 @@ const Edges = () => {
 export default Edges;
 
 
+----- .\client\src\components\EdgeSelection.js -----
+
+// client/src/components/EdgeSelection.js
+import React, { useEffect, useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import api from '../services/api';
+
+const ANY_SKILL_OPTIONS = [
+  "Administer", "Connect", "Drive", "Exert", "Fix", "Heal", "Know",
+  "Lead", "Notice", "Perform", "Program", "Punch", "Shoot", "Sneak",
+  "Stab", "Survive", "Talk", "Trade", "Work"
+];
+
+const EdgeSelection = () => {
+  const { id } = useParams();  // character id
+  const navigate = useNavigate();
+
+  const [character, setCharacter] = useState(null);
+  const [maxEdges, setMaxEdges] = useState(2);
+  const [isUnderdog, setIsUnderdog] = useState(false);
+  const [edges, setEdges] = useState([]);
+  const [selectedEdges, setSelectedEdges] = useState([]);
+  const [error, setError] = useState("");
+
+  // Fetch character details and compute attribute modifier sum and underdog status
+  useEffect(() => {
+    const fetchCharacter = async () => {
+      try {
+        const res = await api.get(`/characters/${id}/`);
+        const charData = res.data;
+        setCharacter(charData);
+        const { strength, dexterity, constitution, intelligence, wisdom, charisma } = charData;
+        // Compute modifiers using (attr - 10)//2
+        const modSum =
+          Math.floor((strength - 10) / 2) +
+          Math.floor((dexterity - 10) / 2) +
+          Math.floor((constitution - 10) / 2) +
+          Math.floor((intelligence - 10) / 2) +
+          Math.floor((wisdom - 10) / 2) +
+          Math.floor((charisma - 10) / 2);
+        if (modSum <= -1) {
+          setMaxEdges(3);
+          setIsUnderdog(true);
+        } else {
+          setMaxEdges(2);
+          setIsUnderdog(false);
+        }
+      } catch (err) {
+        console.error("Error fetching character:", err);
+        setError("Failed to load character data.");
+      }
+    };
+    fetchCharacter();
+  }, [id]);
+
+  // Fetch available edges from /api/edges/
+  useEffect(() => {
+    const fetchEdges = async () => {
+      try {
+        const res = await api.get('/edges/');
+        setEdges(res.data);
+      } catch (err) {
+        console.error("Error fetching edges:", err);
+        setError("Failed to load edges.");
+      }
+    };
+    fetchEdges();
+  }, []);
+
+  // Handler for selecting an edge
+  const handleSelectEdge = (edge) => {
+    // If the edge is Prodigy and the character is Underdog, forbid selection.
+    if (isUnderdog && edge.name.toLowerCase() === "prodigy") {
+      setError("Prodigy is not available when using the Underdog rule.");
+      return;
+    }
+    // Check if edge is already selected
+    const alreadySelected = selectedEdges.find(se => se.id === edge.id);
+    if (alreadySelected) {
+      if (!edge.multi_allowed) return; // if not multi_allowed, do nothing
+      // Otherwise, increment rank
+      setSelectedEdges(selectedEdges.map(se => {
+        if (se.id === edge.id) {
+          return { ...se, rank: se.rank + 1 };
+        }
+        return se;
+      }));
+      return;
+    }
+    if (selectedEdges.length >= maxEdges) {
+      setError(`You may only select up to ${maxEdges} edges.`);
+      return;
+    }
+    // Determine if this edge requires an ANY skill choice
+    const needsSkillChoice = edge.effect_data && edge.effect_data.some(eff =>
+      eff.type === "GRANT_SKILL" && (eff.skill_name === "ANY" || eff.skill_name === "ANY_COMBAT")
+    );
+    const newEdge = { id: edge.id, name: edge.name, rank: 1, needsSkillChoice, any_skill_choice: "" };
+    setSelectedEdges([...selectedEdges, newEdge]);
+    setError("");
+  };
+
+  // Handler to remove a selected edge
+  const handleRemoveEdge = (edgeId) => {
+    setSelectedEdges(selectedEdges.filter(se => se.id !== edgeId));
+  };
+
+  // Handler to set the ANY skill choice for a selected edge
+  const handleAnySkillChoice = (edgeId, skillChoice) => {
+    setSelectedEdges(selectedEdges.map(se => {
+      if (se.id === edgeId) {
+        return { ...se, any_skill_choice: skillChoice };
+      }
+      return se;
+    }));
+  };
+
+  // Handler for confirming edge selection
+  const handleConfirm = async () => {
+    // Validate that for each edge that requires an ANY skill choice, a selection has been made
+    for (let edge of selectedEdges) {
+      if (edge.needsSkillChoice && !edge.any_skill_choice) {
+        setError(`Please select a specific skill for edge "${edge.name}".`);
+        return;
+      }
+    }
+    const payload = {
+      edge_selection: {
+        edges: selectedEdges,  // each item: { id, rank, any_skill_choice }
+        used_underdog: isUnderdog
+      }
+    };
+    try {
+      await api.patch(`/characters/${id}/`, payload);
+      navigate(`/characters/${id}/foci`); // Redirect to the next step (Focus Selection)
+    } catch (err) {
+      console.error("Error saving edge selection:", err);
+      setError("Error saving edge selection.");
+    }
+  };
+
+  return (
+    <div className="card">
+      <h2>Edge Selection</h2>
+      {character && (
+        <p>
+          Based on your attributes, you can choose up to {maxEdges} edge
+          {maxEdges > 1 ? "s" : ""}.
+        </p>
+      )}
+      {error && <div style={{ color: 'red' }}>{error}</div>}
+      <h3>Available Edges</h3>
+      <ul>
+        {edges.map(edge => (
+          <li key={edge.id} style={{ marginBottom: '10px' }}>
+            <div>
+              <strong>{edge.name}</strong> – {edge.description}
+              {/* Disable selection for Prodigy if Underdog is active */}
+              <button
+                onClick={() => handleSelectEdge(edge)}
+                style={{ marginLeft: '10px' }}
+                disabled={isUnderdog && edge.name.toLowerCase() === "prodigy"}
+              >
+                Select
+              </button>
+            </div>
+            {edge.usage_notes && (
+              <div style={{ fontStyle: 'italic', color: '#888', marginTop: '4px' }}>
+                {edge.usage_notes}
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
+      <h3>Selected Edges</h3>
+      {selectedEdges.length === 0 ? (
+        <p>No edges selected yet.</p>
+      ) : (
+        <ul>
+          {selectedEdges.map(edge => (
+            <li key={edge.id} style={{ marginBottom: '10px' }}>
+              <div>
+                <strong>{edge.name}</strong>{edge.rank > 1 && ` (Rank: ${edge.rank})`}
+                <button onClick={() => handleRemoveEdge(edge.id)} style={{ marginLeft: '10px' }}>
+                  Remove
+                </button>
+              </div>
+              {edge.needsSkillChoice && (
+                <div style={{ marginTop: '5px' }}>
+                  <label>
+                    Choose your bonus skill for {edge.name}:{' '}
+                    <select
+                      value={edge.any_skill_choice}
+                      onChange={(e) => handleAnySkillChoice(edge.id, e.target.value)}
+                    >
+                      <option value="">Select a skill</option>
+                      {ANY_SKILL_OPTIONS.map(skill => (
+                        <option key={skill} value={skill}>{skill}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      <div style={{ marginTop: '20px' }}>
+        <button onClick={handleConfirm}>Confirm Edge Selection</button>
+      </div>
+    </div>
+  );
+};
+
+export default EdgeSelection;
+
+
+----- .\client\src\components\FocusSelection.js -----
+
+// client/src/components/FocusSelection.js
+import React from 'react';
+import { useParams } from 'react-router-dom';
+
+const FocusSelection = () => {
+  const { id } = useParams();
+
+  return (
+    <div className="card">
+      <h2>Focus Selection</h2>
+      <p>
+        This is a placeholder for the Focus Selection step in the character creation wizard for character ID: {id}.
+      </p>
+      <p>Coming Soon!</p>
+    </div>
+  );
+};
+
+export default FocusSelection;
+
+
 ----- .\client\src\components\Home.js -----
 
 import React from 'react';
@@ -1573,7 +1816,6 @@ export default Register;
 
 ----- .\client\src\components\ViewCharacter.js -----
 
-// client/src/components/ViewCharacter.js
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import api from '../services/api';
@@ -1623,6 +1865,19 @@ const ViewCharacter = () => {
         </div>
       ) : (
         <p>No background selected.</p>
+      )}
+      <h3>Edges</h3>
+      {character.character_edges && character.character_edges.length > 0 ? (
+        <ul>
+          {character.character_edges.map((ce, index) => (
+            <li key={index}>
+              <strong>{ce.edge.name}</strong> - {ce.edge.description}
+              {ce.rank > 1 && ` (Rank: ${ce.rank})`}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p>No edges selected.</p>
       )}
       <h3>Contacts</h3>
       {character.contacts && character.contacts.length > 0 ? (
@@ -1865,12 +2120,45 @@ class Background(models.Model):
     def __str__(self):
         return self.name
 
-class Archetype(models.Model):
+
+class Edge(models.Model):
     name = models.CharField(max_length=100, unique=True)
     description = models.TextField(blank=True)
 
+    EDGE_CATEGORY_CHOICES = [
+        ('COMMON', 'Common'),
+        ('MAGICAL', 'Magical'),
+    ]
+    category = models.CharField(max_length=20, choices=EDGE_CATEGORY_CHOICES, default='COMMON')
+
+    # Allow multiple picks if true (e.g., Focused can be taken more than once)
+    multi_allowed = models.BooleanField(default=False)
+
+    # Optional prerequisites; for future expansion (e.g., "no_underdog": True)
+    prerequisites = JSONField(blank=True, null=True)
+
+    # Store all mechanical effects as JSON data (e.g., skill grants, attribute mods, etc.)
+    effect_data = JSONField(blank=True, null=True)
+
+    # Optional textual notes for usage or ephemeral instructions
+    usage_notes = models.TextField(blank=True)
+
     def __str__(self):
         return self.name
+
+
+class CharacterEdge(models.Model):
+    character = models.ForeignKey('Character', on_delete=models.CASCADE, related_name='character_edges')
+    edge = models.ForeignKey(Edge, on_delete=models.CASCADE, related_name='character_edges')
+
+    # Track if an edge is taken more than once (e.g., Focused)
+    rank = models.PositiveSmallIntegerField(default=1)
+
+    # For future ephemeral usage tracking (e.g., usage counters)
+    usage_data = JSONField(blank=True, null=True)
+
+    def __str__(self):
+        return f"{self.character.name} - {self.edge.name} (Rank {self.rank})"
 
 class Skill(models.Model):
     name = models.CharField(max_length=100, unique=True)
@@ -1902,7 +2190,7 @@ class Character(models.Model):
     # Relationships with other character-creation components.
     background = models.ForeignKey(Background, on_delete=models.SET_NULL,
                                    null=True, blank=True, related_name='characters')
-    archetypes = models.ManyToManyField(Archetype, blank=True, related_name='characters')
+    edge = models.ManyToManyField(Edge, blank=True, related_name='characters')
     skills = models.ManyToManyField(Skill, through='CharacterSkill', blank=True, related_name='characters')
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -1970,12 +2258,14 @@ class Contact(models.Model):
 ----- .\server\characters\serializers.py -----
 
 from rest_framework import serializers
-from .models import Character, CharacterSkill, Skill, Background, Contact
+from .models import Character, CharacterSkill, Skill, Background, Contact, Edge, CharacterEdge
+
 
 class ContactSerializer(serializers.ModelSerializer):
     class Meta:
         model = Contact
         fields = ['id', 'name', 'relationship_type', 'description']
+
 
 class CharacterSkillSerializer(serializers.ModelSerializer):
     effective_modifier = serializers.IntegerField()
@@ -1983,18 +2273,27 @@ class CharacterSkillSerializer(serializers.ModelSerializer):
     class Meta:
         model = CharacterSkill
         fields = ['skill', 'level', 'effective_modifier']
-class CharacterSkillSerializer(serializers.ModelSerializer):
-    effective_modifier = serializers.IntegerField
+
+
+class EdgeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Edge
+        fields = '__all__'
+
+
+class CharacterEdgeSerializer(serializers.ModelSerializer):
+    # Nest the full edge details for display.
+    edge = EdgeSerializer(read_only=True)
 
     class Meta:
-        model = CharacterSkill
-        fields = ['skill', 'level', 'effective_modifier']
+        model = CharacterEdge
+        fields = ['edge', 'rank', 'usage_data']
 
 
 class CharacterSerializer(serializers.ModelSerializer):
     skills = CharacterSkillSerializer(source='characterskill_set', many=True, read_only=True)
-    # Make contacts writable by removing read_only=True and setting required=False.
     contacts = ContactSerializer(many=True, required=False)
+    character_edges = CharacterEdgeSerializer(many=True, read_only=True)
 
     class Meta:
         model = Character
@@ -2004,28 +2303,13 @@ class CharacterSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         # Pop contacts data if provided in the payload.
         contacts_data = validated_data.pop('contacts', None)
-
-        # Perform the standard update of other fields.
+        # Standard update for other fields.
         instance = super().update(instance, validated_data)
 
         if contacts_data is not None:
-            # Enforce the SRD rule:
-            # Either exactly 2 contacts of type "acquaintance" OR exactly 1 of type "friend"
-            num_acquaintances = sum(1 for c in contacts_data if c.get('relationship_type') == 'acquaintance')
-            num_friends = sum(1 for c in contacts_data if c.get('relationship_type') == 'friend')
-            if not ((num_acquaintances == 2 and num_friends == 0) or (num_friends == 1 and num_acquaintances == 0)):
-                raise serializers.ValidationError(
-                    "Contacts must be either exactly two acquaintances or exactly one friend."
-                )
-
-            # Remove any existing contacts for this character.
             instance.contacts.all().delete()
-
-            # Create new contacts from the payload.
             for contact_data in contacts_data:
                 Contact.objects.create(character=instance, **contact_data)
-
-            # Mark the contacts step as complete in creation_data.
             creation_data = instance.creation_data or {}
             creation_data['contacts_completed'] = True
             instance.creation_data = creation_data
@@ -2033,15 +2317,6 @@ class CharacterSerializer(serializers.ModelSerializer):
         instance.save()
         return instance
 
-class SkillSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Skill
-        fields = '__all__'
-
-class BackgroundSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Background
-        fields = '__all__'
 
 ----- .\server\characters\tests.py -----
 
@@ -2054,9 +2329,79 @@ from django.test import TestCase
 
 from rest_framework import viewsets, permissions, serializers
 from rest_framework.response import Response
-from .models import Character, Background, Skill, CharacterSkill, Contact
-from .serializers import CharacterSerializer, BackgroundSerializer, SkillSerializer
+from .models import Character, Background, Skill, CharacterSkill, Contact, Edge, CharacterEdge
+from .serializers import CharacterSerializer, BackgroundSerializer, SkillSerializer, ContactSerializer, EdgeSerializer
 from .services.modifiers import apply_modifiers
+
+def apply_edge_selection(character, selection):
+    """
+    Applies the chosen edge selection to the given character.
+    Expects 'selection' to be a dictionary with an "edges" key containing a list
+    of objects with: { id, rank, any_skill_choice } and an optional key "used_underdog".
+    For each edge:
+      - Creates a CharacterEdge record.
+      - Applies immediate effects (e.g., GRANT_SKILL, MOD_FORMULA, MOD_TRAUMA_TARGET)
+        via our apply_modifiers function or by storing values in character.creation_data.
+    """
+    edges_list = selection.get("edges")
+    if edges_list is None:
+        raise serializers.ValidationError("No edges provided in edge_selection.")
+
+    # Replace any existing character edges
+    character.character_edges.all().delete()
+
+    for edge_item in edges_list:
+        edge_id = edge_item.get("id")
+        rank = edge_item.get("rank", 1)
+        any_skill_choice = edge_item.get("any_skill_choice", None)
+
+        try:
+            edge_obj = Edge.objects.get(id=edge_id)
+        except Edge.DoesNotExist:
+            raise serializers.ValidationError(f"Edge with id {edge_id} does not exist.")
+
+        # Create the pivot record for this edge
+        CharacterEdge.objects.create(character=character, edge=edge_obj, rank=rank)
+
+        # Process any immediate effects from the edge's effect_data
+        if edge_obj.effect_data:
+            for effect in edge_obj.effect_data:
+                effect_type = effect.get("type")
+                if effect_type == "GRANT_SKILL":
+                    skill_name = effect.get("skill_name")
+                    # For "ANY" or "ANY_COMBAT" choices, use the user's selection
+                    if skill_name in ["ANY", "ANY_COMBAT"]:
+                        if not any_skill_choice:
+                            raise serializers.ValidationError(
+                                f"Edge '{edge_obj.name}' requires a specific skill choice."
+                            )
+                        chosen_skill = any_skill_choice
+                    else:
+                        chosen_skill = skill_name
+                    modifier = {
+                        "modifier_type": "SKILL",
+                        "skill_name": chosen_skill,
+                        "points": effect.get("points", 0)
+                    }
+                    apply_modifiers(character, [modifier])
+                elif effect_type == "MOD_FORMULA":
+                    creation_data = character.creation_data or {}
+                    creation_data['hp_formula'] = effect.get("value")
+                    character.creation_data = creation_data
+                elif effect_type == "MOD_TRAUMA_TARGET":
+                    creation_data = character.creation_data or {}
+                    creation_data.setdefault('trauma_target_mod', 0)
+                    creation_data['trauma_target_mod'] += effect.get("amount", 0)
+                    character.creation_data = creation_data
+                # (Add additional effect types here as needed.)
+    # If the selection payload indicates used_underdog, store that flag.
+    if selection.get("used_underdog"):
+        creation_data = character.creation_data or {}
+        creation_data['used_underdog'] = True
+        character.creation_data = creation_data
+
+    character.save()
+
 
 def apply_background_selection(character, selection):
     # Assign the selected background.
@@ -2156,30 +2501,13 @@ class CharacterViewSet(viewsets.ModelViewSet):
         return super().get_queryset().filter(user=self.request.user)
 
     def update(self, request, *args, **kwargs):
-        # Pop background_selection from payload if present
+        # Pop background_selection and edge_selection from payload if present
         background_selection = request.data.pop('background_selection', None)
+        edge_selection = request.data.pop('edge_selection', None)
         character = self.get_object()
 
         # Update the character with other fields (including contacts payload if provided)
-        serializer = self.get_serializer(character, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        self.perform_update(serializer)
-
-        # If background_selection was sent, process it.
-        if background_selection:
-            try:
-                apply_background_selection(character, background_selection)
-            except serializers.ValidationError as e:
-                return Response({"detail": e.detail}, status=400)
-            # Reload serializer to reflect changes from background_selection
-            serializer = self.get_serializer(character)
-
-        return Response(serializer.data)
-
-class BackgroundViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = Background.objects.all()
-    serializer_class = BackgroundSerializer
-    permission_classes = [permissions.IsAuthenticated]
+        serializer = self.get
 
 
 ----- .\server\characters\__init__.py -----
@@ -2976,6 +3304,296 @@ class BackgroundViewSet(viewsets.ReadOnlyModelViewSet):
 ]
 
 
+----- .\server\characters\fixtures\initial_edges.json -----
+
+[
+  {
+    "model": "characters.edge",
+    "pk": 1,
+    "fields": {
+      "name": "Educated",
+      "description": "You may pick a bonus skill of your choice. Whenever you gain skill points from character level advancement, you get a bonus skill point.",
+      "category": "COMMON",
+      "multi_allowed": false,
+      "prerequisites": {},
+      "effect_data": [
+        { "type": "GRANT_SKILL", "skill_name": "ANY", "points": 1 },
+        { "type": "LEVEL_UP_BONUS", "bonus_skill_points": 1 }
+      ],
+      "usage_notes": "",
+      "source": "Cities Without Number"
+    }
+  },
+  {
+    "model": "characters.edge",
+    "pk": 2,
+    "fields": {
+      "name": "Face",
+      "description": "Gain Connect as a bonus skill. Once per game week, you may conjure a temporary Acquaintance Contact of your choice.",
+      "category": "COMMON",
+      "multi_allowed": false,
+      "prerequisites": {},
+      "effect_data": [
+        { "type": "GRANT_SKILL", "skill_name": "Connect", "points": 1 },
+        { "type": "EPHEMERAL_POWER", "name": "temporary_acquaintance", "frequency": "WEEKLY" }
+      ],
+      "usage_notes": "Once per game week, gain a temporary Acquaintance Contact.",
+      "source": "Cities Without Number"
+    }
+  },
+  {
+    "model": "characters.edge",
+    "pk": 3,
+    "fields": {
+      "name": "Focused",
+      "description": "You begin play with an extra Focus pick. This Edge may be chosen more than once.",
+      "category": "COMMON",
+      "multi_allowed": true,
+      "prerequisites": {},
+      "effect_data": [
+        { "type": "GRANT_FOCUS", "count": 1 }
+      ],
+      "usage_notes": "",
+      "source": "Cities Without Number"
+    }
+  },
+  {
+    "model": "characters.edge",
+    "pk": 4,
+    "fields": {
+      "name": "Ghost",
+      "description": "Gain Sneak as a bonus skill, and your Fighting Withdrawal action becomes an On Turn action. Once per scene, reroll a failed Sneak check; once per game day, move up to 10 meters unseen.",
+      "category": "COMMON",
+      "multi_allowed": false,
+      "prerequisites": {},
+      "effect_data": [
+        { "type": "GRANT_SKILL", "skill_name": "Sneak", "points": 1 },
+        { "type": "EPHEMERAL_POWER", "name": "reroll_sneak", "frequency": "SCENE" },
+        { "type": "EPHEMERAL_POWER", "name": "vanish_move", "frequency": "DAILY", "distance": 10 }
+      ],
+      "usage_notes": "Once per scene, reroll a failed Sneak check; once per day, move up to 10m unseen.",
+      "source": "Cities Without Number"
+    }
+  },
+  {
+    "model": "characters.edge",
+    "pk": 5,
+    "fields": {
+      "name": "Hacker",
+      "description": "Gain Program as a bonus skill. Begin play with an installed Cranial Jack and a scrap deck. Each round, gain a bonus Main Action for hacking-related actions.",
+      "category": "COMMON",
+      "multi_allowed": false,
+      "prerequisites": {},
+      "effect_data": [
+        { "type": "GRANT_SKILL", "skill_name": "Program", "points": 1 },
+        { "type": "GRANT_GEAR", "gear": "Cranial Jack", "description": "Installed at start" },
+        { "type": "BONUS_ACTION", "action": "Hacking", "frequency": "ROUND" }
+      ],
+      "usage_notes": "Provides bonus Main Action each round for hacking.",
+      "source": "Cities Without Number"
+    }
+  },
+  {
+    "model": "characters.edge",
+    "pk": 6,
+    "fields": {
+      "name": "Hard To Kill",
+      "description": "Instead of rolling 1d6 per level for your hit points, roll 1d6+2. Your base Trauma Target increases by +1.",
+      "category": "COMMON",
+      "multi_allowed": false,
+      "prerequisites": {},
+      "effect_data": [
+        { "type": "MOD_FORMULA", "target": "hit_dice", "value": "1d6+2" },
+        { "type": "MOD_TRAUMA_TARGET", "amount": 1 }
+      ],
+      "usage_notes": "",
+      "source": "Cities Without Number"
+    }
+  },
+  {
+    "model": "characters.edge",
+    "pk": 7,
+    "fields": {
+      "name": "Killing Blow",
+      "description": "Gain a combat skill as a bonus. Damage increases by 1 point per two levels and any Trauma Die gets a +1 bonus.",
+      "category": "COMMON",
+      "multi_allowed": false,
+      "prerequisites": {},
+      "effect_data": [
+        { "type": "GRANT_SKILL", "skill_name": "ANY_COMBAT", "points": 1 },
+        { "type": "SCALING_BONUS", "bonus": "damage_increase", "per_levels": 2, "increment": 1 },
+        { "type": "SCALING_BONUS", "bonus": "trauma_die", "per_levels": 2, "increment": 1 }
+      ],
+      "usage_notes": "",
+      "source": "Cities Without Number"
+    }
+  },
+  {
+    "model": "characters.edge",
+    "pk": 8,
+    "fields": {
+      "name": "Masterful Expertise",
+      "description": "Once per scene, as an Instant action, reroll a failed check for a non-combat skill.",
+      "category": "COMMON",
+      "multi_allowed": false,
+      "prerequisites": {},
+      "effect_data": [
+        { "type": "EPHEMERAL_POWER", "name": "reroll_noncombat", "frequency": "SCENE" }
+      ],
+      "usage_notes": "",
+      "source": "Cities Without Number"
+    }
+  },
+  {
+    "model": "characters.edge",
+    "pk": 9,
+    "fields": {
+      "name": "On Target",
+      "description": "Gain a combat skill as a bonus. Your basic attack bonus equals your character level instead of half.",
+      "category": "COMMON",
+      "multi_allowed": false,
+      "prerequisites": {},
+      "effect_data": [
+        { "type": "GRANT_SKILL", "skill_name": "ANY_COMBAT", "points": 1 },
+        { "type": "MOD_FORMULA", "target": "attack_bonus", "value": "full_level" }
+      ],
+      "usage_notes": "",
+      "source": "Cities Without Number"
+    }
+  },
+  {
+    "model": "characters.edge",
+    "pk": 10,
+    "fields": {
+      "name": "Prodigy",
+      "description": "Pick an attribute other than Constitution; set it to 18 and grant it a +3 modifier. Cannot be taken if using the Underdog rule.",
+      "category": "COMMON",
+      "multi_allowed": false,
+      "prerequisites": { "no_underdog": true },
+      "effect_data": [
+        { "type": "ATTRIBUTE_SET", "attribute": "ANY_BUT_CON", "value": 18, "modifier": 3 }
+      ],
+      "usage_notes": "",
+      "source": "Cities Without Number"
+    }
+  },
+  {
+    "model": "characters.edge",
+    "pk": 11,
+    "fields": {
+      "name": "Operator’s Fortune",
+      "description": "Once per game session, as an Instant action, roll 1d6. On a 1, nothing changes; on 2-5, you avert a bad event; on 6, it lands on an enemy or rival.",
+      "category": "COMMON",
+      "multi_allowed": false,
+      "prerequisites": {},
+      "effect_data": [
+        { "type": "EPHEMERAL_POWER", "name": "operator_fortune", "frequency": "SESSION" }
+      ],
+      "usage_notes": "",
+      "source": "Cities Without Number"
+    }
+  },
+  {
+    "model": "characters.edge",
+    "pk": 12,
+    "fields": {
+      "name": "Veteran’s Luck",
+      "description": "Once per scene, as an Instant action, convert a hit into a miss or vice versa.",
+      "category": "COMMON",
+      "multi_allowed": false,
+      "prerequisites": {},
+      "effect_data": [
+        { "type": "EPHEMERAL_POWER", "name": "veterans_luck", "frequency": "SCENE" }
+      ],
+      "usage_notes": "",
+      "source": "Cities Without Number"
+    }
+  },
+  {
+    "model": "characters.edge",
+    "pk": 13,
+    "fields": {
+      "name": "Voice of the People",
+      "description": "Gain both levels of the Pop Idol Focus and an additional Friend Contact related to your art.",
+      "category": "COMMON",
+      "multi_allowed": false,
+      "prerequisites": {},
+      "effect_data": [
+        { "type": "GRANT_FOCUS", "focus_name": "Pop Idol", "levels": 2 },
+        { "type": "GRANT_CONTACT", "relationship": "friend", "count": 1 }
+      ],
+      "usage_notes": "",
+      "source": "Cities Without Number"
+    }
+  },
+  {
+    "model": "characters.edge",
+    "pk": 14,
+    "fields": {
+      "name": "Wired",
+      "description": "Begin play with up to $200,000 worth of cyber. No installation cost; maintenance is covered for two months. Redeemable later for a trade-in.",
+      "category": "COMMON",
+      "multi_allowed": false,
+      "prerequisites": {},
+      "effect_data": [
+        { "type": "GRANT_CYBER_FUNDS", "amount": 200000 },
+        { "type": "FREE_MAINTENANCE", "duration": "2_months" }
+      ],
+      "usage_notes": "",
+      "source": "Cities Without Number"
+    }
+  },
+  {
+    "model": "characters.edge",
+    "pk": 15,
+    "fields": {
+      "name": "Graced",
+      "description": "You have innate magical abilities that enhance your physical or mental prowess. Gain the Graced powers and hindrances as described in section 6.3.0.",
+      "category": "MAGICAL",
+      "multi_allowed": false,
+      "prerequisites": {},
+      "effect_data": [
+        { "type": "GRANT_MAGICAL", "subtype": "graced" }
+      ],
+      "usage_notes": "",
+      "source": "Cities Without Number"
+    }
+  },
+  {
+    "model": "characters.edge",
+    "pk": 16,
+    "fields": {
+      "name": "Spellcaster",
+      "description": "You are a mage, capable of casting spells as described in section 6.1.0 and subject to a mage's limits in using cyberware.",
+      "category": "MAGICAL",
+      "multi_allowed": false,
+      "prerequisites": {},
+      "effect_data": [
+        { "type": "GRANT_MAGICAL", "subtype": "spellcaster" }
+      ],
+      "usage_notes": "",
+      "source": "Cities Without Number"
+    }
+  },
+  {
+    "model": "characters.edge",
+    "pk": 17,
+    "fields": {
+      "name": "Summoner",
+      "description": "You are a summoner, capable of calling spirit servants as described in section 6.2.0, though you also face limits in using cyberware.",
+      "category": "MAGICAL",
+      "multi_allowed": false,
+      "prerequisites": {},
+      "effect_data": [
+        { "type": "GRANT_MAGICAL", "subtype": "summoner" }
+      ],
+      "usage_notes": "",
+      "source": "Cities Without Number"
+    }
+  }
+]
+
+
 ----- .\server\characters\fixtures\initial_skills.json -----
 
 [
@@ -3546,7 +4164,7 @@ CORS_ALLOW_CREDENTIALS = True
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework import routers
-from characters.views import CharacterViewSet, SkillViewSet, BackgroundViewSet
+from characters.views import CharacterViewSet, SkillViewSet, BackgroundViewSet, EdgeViewSet
 from users.views import UserRegistrationView, user_roles  # <-- Import from users app
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
@@ -3558,6 +4176,8 @@ router = routers.DefaultRouter()
 router.register(r'characters', CharacterViewSet, basename='characters')
 router.register(r'skills', SkillViewSet, basename='skills')
 router.register(r'backgrounds', BackgroundViewSet, basename='backgrounds')
+router.register(r'edges', EdgeViewSet, basename='edges')
+
 
 urlpatterns = [
     path('admin/', admin.site.urls),

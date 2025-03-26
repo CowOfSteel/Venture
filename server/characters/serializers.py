@@ -23,12 +23,23 @@ class EdgeSerializer(serializers.ModelSerializer):
 
 
 class CharacterEdgeSerializer(serializers.ModelSerializer):
-    # Nest the full edge details for display.
     edge = EdgeSerializer(read_only=True)
 
     class Meta:
         model = CharacterEdge
         fields = ['edge', 'rank', 'usage_data']
+
+
+class BackgroundSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Background
+        fields = '__all__'
+
+
+class SkillSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Skill
+        fields = '__all__'
 
 
 class CharacterSerializer(serializers.ModelSerializer):
@@ -42,11 +53,8 @@ class CharacterSerializer(serializers.ModelSerializer):
         read_only_fields = ['user', 'created_at', 'updated_at']
 
     def update(self, instance, validated_data):
-        # Pop contacts data if provided in the payload.
         contacts_data = validated_data.pop('contacts', None)
-        # Standard update for other fields.
         instance = super().update(instance, validated_data)
-
         if contacts_data is not None:
             instance.contacts.all().delete()
             for contact_data in contacts_data:
@@ -54,6 +62,5 @@ class CharacterSerializer(serializers.ModelSerializer):
             creation_data = instance.creation_data or {}
             creation_data['contacts_completed'] = True
             instance.creation_data = creation_data
-
         instance.save()
         return instance

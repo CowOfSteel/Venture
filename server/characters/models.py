@@ -18,26 +18,31 @@ class Background(models.Model):
 
 
 class Edge(models.Model):
+    # Basic identification
     name = models.CharField(max_length=100, unique=True)
     description = models.TextField(blank=True)
 
+    # Category for filtering (e.g., COMMON, MAGICAL)
     EDGE_CATEGORY_CHOICES = [
         ('COMMON', 'Common'),
         ('MAGICAL', 'Magical'),
     ]
     category = models.CharField(max_length=20, choices=EDGE_CATEGORY_CHOICES, default='COMMON')
 
-    # Allow multiple picks if true (e.g., Focused can be taken more than once)
+    # Whether the edge can be chosen multiple times
     multi_allowed = models.BooleanField(default=False)
 
-    # Optional prerequisites; for future expansion (e.g., "no_underdog": True)
+    # Prerequisites as a JSON field (e.g., {"no_underdog": true})
     prerequisites = JSONField(blank=True, null=True)
 
-    # Store all mechanical effects as JSON data (e.g., skill grants, attribute mods, etc.)
+    # The mechanical effects defined as JSON
     effect_data = JSONField(blank=True, null=True)
 
-    # Optional textual notes for usage or ephemeral instructions
+    # A text field for usage notes (e.g., "Once per scene, ...")
     usage_notes = models.TextField(blank=True)
+
+    # NEW: Source field to indicate where the edge comes from.
+    source = models.CharField(max_length=100, blank=True)
 
     def __str__(self):
         return self.name
