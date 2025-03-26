@@ -2,7 +2,7 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.db.models import JSONField
 
-# Background, Archetype, and Skill models will be expanded later.
+
 class Background(models.Model):
     name = models.CharField(max_length=100, unique=True)
     description = models.TextField(blank=True)
@@ -17,10 +17,8 @@ class Background(models.Model):
         return self.name
 
 class Archetype(models.Model):
-    # This will eventually combine the concepts of Edges and Classes.
     name = models.CharField(max_length=100, unique=True)
     description = models.TextField(blank=True)
-    # Additional fields (prerequisites, bonuses, etc.) can be added later.
 
     def __str__(self):
         return self.name
@@ -28,8 +26,7 @@ class Archetype(models.Model):
 class Skill(models.Model):
     name = models.CharField(max_length=100, unique=True)
     description = models.TextField(blank=True)
-    category = models.CharField(max_length=50, blank=True)  # e.g., combat, technical, social
-    # Every skill starts with no bonus, so default modifier is -1.
+    category = models.CharField(max_length=50, blank=True)
     default_modifier = models.IntegerField(default=-1)
 
     def __str__(self):
@@ -38,7 +35,7 @@ class Skill(models.Model):
 class Character(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='characters')
     name = models.CharField(max_length=100)
-    goal = models.CharField(max_length=255, blank=True)  # Final narrative goal
+    goal = models.CharField(max_length=255, blank=True)
 
     # Basic Attributes
     strength = models.PositiveIntegerField(default=10)
@@ -58,13 +55,15 @@ class Character(models.Model):
                                    null=True, blank=True, related_name='characters')
     archetypes = models.ManyToManyField(Archetype, blank=True, related_name='characters')
     skills = models.ManyToManyField(Skill, through='CharacterSkill', blank=True, related_name='characters')
-    # Future models: Contacts, Cyberware, Vehicles, Items, etc.
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return f"{self.name} ({self.user.username})"
+
+    def contact_list(self):
+        return self.contacts.all()
 
 class CharacterSkill(models.Model):
     character = models.ForeignKey(Character, on_delete=models.CASCADE)
@@ -105,4 +104,15 @@ class Modifier(models.Model):
 
     def __str__(self):
         return f"{self.source} (ID: {self.source_id}) - {self.modifier_type}: {self.points}"
+class Contact(models.Model):
+    RELATIONSHIP_CHOICES = [
+        ('acquaintance', 'Acquaintance'),
+        ('friend', 'Friend'),
+    ]
+    character = models.ForeignKey(Character, on_delete=models.CASCADE, related_name='contacts')
+    name = models.CharField(max_length=100)
+    relationship_type = models.CharField(max_length=20, choices=RELATIONSHIP_CHOICES)
+    description = models.TextField(blank=True)  # Optional additional context
 
+    def __str__(self):
+        return f"{self.name} ({self.get_relationship_type_display()})"

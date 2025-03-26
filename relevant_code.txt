@@ -509,45 +509,42 @@ import { useNavigate, useParams } from 'react-router-dom';
 
 const ATTRIBUTE_NAMES = ["strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma"];
 const ANY_COMBAT_OPTIONS = ["Punch", "Shoot", "Stab"];
-const ANY_AVAILABLE_SKILLS = ["Administer", "Connect", "Drive", "Exert", "Fix", "Heal", "Know", "Lead", "Notice", "Perform", "Program", "Punch", "Shoot", "Sneak", "Stab", "Survive", "Talk", "Trade", "Work"];
+const ANY_AVAILABLE_SKILLS = [
+  "Administer", "Connect", "Drive", "Exert", "Fix", "Heal",
+  "Know", "Lead", "Notice", "Perform", "Program", "Punch",
+  "Shoot", "Sneak", "Stab", "Survive", "Talk", "Trade", "Work"
+];
 
 const BackgroundCreation = () => {
   const [backgrounds, setBackgrounds] = useState([]);
   const [selectedBackground, setSelectedBackground] = useState(null);
   const [mode, setMode] = useState('roll'); // 'roll' or 'manual'
-  const [rollData, setRollData] = useState({growth_rolls: [], learning_rolls: []});
+  const [rollData, setRollData] = useState({ growth_rolls: [], learning_rolls: [] });
   const [computedResults, setComputedResults] = useState([]); // results from dice rolls
   const [manualChoices, setManualChoices] = useState([]); // manual pick choices
   const [error, setError] = useState(null);
-  const [pendingAnySkill, setPendingAnySkill] = useState(null);
-  // NEW: State to capture bonus attribute point assignments.
-  // Structure will be an object like: { strength: 1, dexterity: 1 }
-  const [attributeBonusAssignments, setAttributeBonusAssignments] = useState({});
-  const [pendingDistributions, setPendingDistributions] = useState([]);
+  // Pending ANY picks now as an array (multiple ANY picks allowed)
+  const [pendingAnySkills, setPendingAnySkills] = useState([]);
+  // BONUS distributions state from Phase 2
+  const [bonusDistributions, setBonusDistributions] = useState({});
 
   const navigate = useNavigate();
-  const {id} = useParams(); // character ID
-  const handleDistributionComplete = (dist, finalAssignment) => {
-  // Merge the completed distribution result into computedResults
-  setComputedResults(prev => [...prev, { ...dist, assigned_attributes: finalAssignment }]);
-  // Remove this distribution from pendingDistributions.
-  setPendingDistributions(prev => prev.filter(d => d !== dist));
-};
+  const { id } = useParams(); // character ID
 
   useEffect(() => {
     axios.get('/backgrounds/')
-        .then(res => setBackgrounds(res.data))
-        .catch(err => setError('Failed to load backgrounds.'));
+      .then(res => setBackgrounds(res.data))
+      .catch(err => setError('Failed to load backgrounds.'));
   }, []);
 
   const handleBackgroundSelect = (bg) => {
     setSelectedBackground(bg);
-    setRollData({growth_rolls: [], learning_rolls: []});
+    setRollData({ growth_rolls: [], learning_rolls: [] });
     setComputedResults([]);
     setManualChoices([]);
     setError(null);
-    setPendingAnySkill(null);
-    setAttributeBonusAssignments({});
+    setPendingAnySkills([]);
+    setBonusDistributions({});
   };
 
   const rollD6 = () => Math.floor(Math.random() * 6) + 1;
@@ -559,292 +556,308 @@ const BackgroundCreation = () => {
 
     if (tableType === 'growth') {
       const roll = rollD6();
-      setRollData(prev => ({...prev, growth_rolls: [...prev.growth_rolls, roll]}));
+      setRollData(prev => ({ ...prev, growth_rolls: [...prev.growth_rolls, roll] }));
       if (selectedBackground && selectedBackground.growth_table) {
         const result = selectedBackground.growth_table[String(roll)];
         if (result) {
-          if (
-              result.type === "ATTRIBUTE" &&
-              ["ANY", "PHYSICAL", "MENTAL"].includes(result.category.toUpperCase())
-          ) {
-            // Instead of auto-assigning, push this result into pendingDistributions
-            setPendingDistributions(prev => [...prev, result]);
+          if (result.type === "ATTRIBUTE" &&
+              ["ANY", "PHYSICAL", "MENTAL"].includes(result.category.toUpperCase())) {
+            // Queue this bonus distribution result for later assignment.
+            setComputedResults(prev => [...prev, result]);
           } else if (
-              result.type === "SKILL" &&
-              (result.name.toLowerCase() === "any" || result.name.toLowerCase() === "any_combat")
+            result.type === "SKILL" &&
+            (result.name.toLowerCase() === "any" || result.name.toLowerCase() === "any_combat")
           ) {
-            setPendingAnySkill(result.name.toLowerCase());
-            // Still add it to computedResults if needed
+            // Add a new ANY pick to the array.
+            setPendingAnySkills(prev => [...prev, result.name.toLowerCase()]);
             setComputedResults(prev => [...prev, result]);
           } else {
             setComputedResults(prev => [...prev, result]);
           }
         }
-      } else if (tableType === 'learning') {
-        const roll = rollD8();
-        setRollData(prev => ({...prev, learning_rolls: [...prev.learning_rolls, roll]}));
-        if (selectedBackground && selectedBackground.learning_table) {
-          const result = selectedBackground.learning_table[String(roll)];
-          if (result) {
-            if (result.type === "SKILL" && (result.name.toLowerCase() === "any" || result.name.toLowerCase() === "any_combat")) {
-              setPendingAnySkill(result.name.toLowerCase());
-            }
+      }
+    } else if (tableType === 'learning') {
+      const roll = rollD8();
+      setRollData(prev => ({ ...prev, learning_rolls: [...prev.learning_rolls, roll] }));
+      if (selectedBackground && selectedBackground.learning_table) {
+        const result = selectedBackground.learning_table[String(roll)];
+        if (result) {
+          if (
+            result.type === "SKILL" &&
+            (result.name.toLowerCase() === "any" || result.name.toLowerCase() === "any_combat")
+          ) {
+            setPendingAnySkills(prev => [...prev, result.name.toLowerCase()]);
+            setComputedResults(prev => [...prev, result]);
+          } else {
             setComputedResults(prev => [...prev, result]);
           }
         }
       }
     }
-    ;
+  };
 
-    const handleAnySkillSelection = (selectedSkill) => {
-      setComputedResults(prevResults =>
-          prevResults.map(res =>
-              (res.type === "SKILL" && (res.name.toLowerCase() === "any" || res.name.toLowerCase() === "any_combat"))
-                  ? {...res, name: selectedSkill}
-                  : res
-          )
-      );
-      setPendingAnySkill(null);
-    };
+  // STEP 3 IMPLEMENTATION: Update ANY-skill selection to work with our pendingAnySkills array.
+  // Also, filter out any option that was already chosen via ANY picks.
+  const handleAnySkillSelection = (index, selectedSkill) => {
+    // Determine which ANY skills have already been resolved:
+    const resolvedAnySkills = computedResults
+      .filter(r => r.type === "SKILL" && r.name.toLowerCase() !== "any" && r.name.toLowerCase() !== "any_combat")
+      .map(r => r.name.toLowerCase());
+    // If the selected skill is already chosen, do nothing.
+    if (resolvedAnySkills.includes(selectedSkill.toLowerCase())) return;
 
-    // NEW: Identify if a bonus result exists (i.e. an attribute bonus with more than 1 point)
-    const bonusResult = computedResults.find(res => res.type === "ATTRIBUTE" && res.points > 1);
-    let allowedAttributes = [];
-    if (bonusResult) {
-      const cat = bonusResult.category.toUpperCase();
-      if (cat === "ANY") {
-        allowedAttributes = ["strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma"];
-      } else if (cat === "PHYSICAL") {
-        allowedAttributes = ["strength", "dexterity", "constitution"];
-      } else if (cat === "MENTAL") {
-        allowedAttributes = ["intelligence", "wisdom", "charisma"];
-      }
-    }
-    const sumAssigned = Object.values(attributeBonusAssignments).reduce((acc, val) => acc + Number(val), 0);
-
-    const handleBonusChange = (attr, value) => {
-      const numericVal = Math.max(0, parseInt(value) || 0);
-      setAttributeBonusAssignments(prev => ({...prev, [attr]: numericVal}));
-    };
-
-    const buildPayload = () => {
-      let payload = {background_id: selectedBackground.id, mode};
-      if (mode === 'roll') {
-        payload.growth_rolls = rollData.growth_rolls;
-        payload.learning_rolls = rollData.learning_rolls;
-        payload.results = computedResults;
-        // Include bonus distribution if a bonus result exists.
-        if (bonusResult) {
-          payload.bonus_distribution = [{
-            category: bonusResult.category,
-            points: bonusResult.points,
-            assigned_attributes: attributeBonusAssignments
-          }];
+    let anySkillCount = 0;
+    setComputedResults(prevResults =>
+      prevResults.map(res => {
+        if (res.type === "SKILL" && (res.name.toLowerCase() === "any" || res.name.toLowerCase() === "any_combat")) {
+          if (anySkillCount === index) {
+            return { ...res, name: selectedSkill };
+          }
+          anySkillCount++;
         }
-      } else {
-        payload.manual_choices = manualChoices;
-      }
-      return payload;
-    };
-
-const handleConfirm = () => {
-  if (!selectedBackground) {
-    setError("Please select a background.");
-    return;
-  }
-  if (mode === 'roll') {
-    if ((rollData.growth_rolls.length + rollData.learning_rolls.length) !== 3) {
-      setError("Please roll exactly 3 times (combined).");
-      return;
-    }
-    if (computedResults.length + pendingDistributions.length !== 3) {
-      setError("Results are incomplete. Please complete any bonus distributions.");
-      return;
-    }
-    if (pendingAnySkill) {
-      setError("Please select a bonus skill for your ANY roll.");
-      return;
-    }
-  } else {
-    if (manualChoices.length !== 2) {
-      setError("Please select exactly 2 manual choices.");
-      return;
-    }
-  }
-  const payload = buildPayload();
-  console.log("Sending payload:", payload);
-  axios.patch(`/characters/${id}/`, { background_selection: payload })
-    .then(res => {
-      navigate(`/characters/${id}/contacts`);
-    })
-    .catch(err => {
-      console.error("Error saving background selection:", err.response.data);
-      setError("Error saving background selection.");
+        return res;
+      })
+    );
+    setPendingAnySkills(prev => {
+      const newArray = [...prev];
+      newArray.splice(index, 1);
+      return newArray;
     });
+  };
+
+  // STEP 2/3: Compute bonus results (attribute bonuses) from computedResults.
+  const bonusResults = computedResults.filter(
+    res => res.type === "ATTRIBUTE" && res.points > 1
+  );
+
+  // Handler for bonus distribution completion for a given bonus roll index.
+  const handleBonusDistributionComplete = (index, finalAssignment) => {
+    setBonusDistributions(prev => ({ ...prev, [index]: {
+      category: bonusResults[index].category,
+      points: bonusResults[index].points,
+      assigned_attributes: finalAssignment
+    }}));
+  };
+
+  // Calculate allowed attributes for bonus distribution:
+  let allowedAttributes = [];
+  if (bonusResults.length > 0) {
+    // Note: For multiple bonus rolls, each distribution will render its own UI.
+    // This variable is used only in the BonusAttributeDistribution component.
+    // Here we simply leave allowedAttributes empty.
+  }
+
+  // STEP 2/3: Build payload including bonus distributions only if they’re complete.
+  const buildPayload = () => {
+    let payload = { background_id: selectedBackground.id, mode };
+    if (mode === 'roll') {
+      payload.growth_rolls = rollData.growth_rolls;
+      payload.learning_rolls = rollData.learning_rolls;
+      payload.results = computedResults;
+      // Ensure bonus distributions are complete for all bonus results.
+      if (bonusResults.length > 0) {
+        if (Object.keys(bonusDistributions).length !== bonusResults.length) {
+          setError("Please complete bonus attribute distribution for all bonus rolls.");
+          return null;
+        }
+        payload.bonus_distribution = Object.values(bonusDistributions);
+      }
+    } else {
+      payload.manual_choices = manualChoices;
+    }
+    return payload;
+  };
+
+  const handleConfirm = () => {
+    if (!selectedBackground) {
+      setError("Please select a background.");
+      return;
+    }
+    if (mode === 'roll') {
+      if ((rollData.growth_rolls.length + rollData.learning_rolls.length) !== 3) {
+        setError("Please roll exactly 3 times (combined).");
+        return;
+      }
+      if (computedResults.length !== 3) {
+        setError("Results are incomplete. Please complete all bonus distributions.");
+        return;
+      }
+      if (pendingAnySkills.length > 0) {
+        setError("Please select bonus skills for all ANY rolls.");
+        return;
+      }
+      if (bonusResults.length > 0 && Object.keys(bonusDistributions).length !== bonusResults.length) {
+        setError("Please complete bonus attribute distribution for all bonus rolls.");
+        return;
+      }
+    } else {
+      if (manualChoices.length !== 2) {
+        setError("Please select exactly 2 manual choices.");
+        return;
+      }
+    }
+    const payload = buildPayload();
+    if (!payload) return;
+    console.log("Sending payload:", payload);
+    axios.patch(`/characters/${id}/`, { background_selection: payload })
+      .then(res => {
+        navigate(`/characters/${id}/contacts`);
+      })
+      .catch(err => {
+        console.error("Error saving background selection:", err.response.data);
+        setError("Error saving background selection.");
+      });
+  };
+
+  return (
+    <div className="card">
+      <h2>Background Selection</h2>
+      {error && <div style={{ color: 'red' }}>{error}</div>}
+      {!selectedBackground ? (
+        <div>
+          <h3>Choose a Background:</h3>
+          <ul>
+            {backgrounds.map(bg => (
+              <li key={bg.id}>
+                <button onClick={() => handleBackgroundSelect(bg)}>
+                  <strong>{bg.name}</strong>: {bg.description}<br />
+                  Free Skill: {bg.free_skill}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : (
+        <div>
+          <h3>{selectedBackground.name} Selected</h3>
+          <p>{selectedBackground.description}</p>
+          <p>Free Skill: {selectedBackground.free_skill}</p>
+          <div>
+            <label>
+              <input
+                type="radio"
+                value="roll"
+                checked={mode === 'roll'}
+                onChange={() => { setMode('roll'); setError(null); }}
+              />
+              Roll-based Selection
+            </label>
+            <label style={{ marginLeft: '20px' }}>
+              <input
+                type="radio"
+                value="manual"
+                checked={mode === 'manual'}
+                onChange={() => { setMode('manual'); setError(null); }}
+              />
+              Manual Selection
+            </label>
+          </div>
+          {mode === 'roll' && (
+            <div>
+              <h4>Roll Dice (3 rolls total):</h4>
+              <button
+                onClick={() => handleRoll('growth')}
+                disabled={(rollData.growth_rolls.length + rollData.learning_rolls.length) >= 3}
+              >
+                Roll d6 for Growth
+              </button>
+              <button
+                onClick={() => handleRoll('learning')}
+                disabled={(rollData.growth_rolls.length + rollData.learning_rolls.length) >= 3}
+                style={{ marginLeft: '10px' }}
+              >
+                Roll d8 for Learning
+              </button>
+              <div>
+                <p>Growth Rolls: {rollData.growth_rolls.join(', ')}</p>
+                <p>Learning Rolls: {rollData.learning_rolls.join(', ')}</p>
+              </div>
+              {computedResults.length > 0 && (
+                <div>
+                  <h4>Results:</h4>
+                  <ul>
+                    {computedResults.map((res, idx) => (
+                      <li key={idx}>
+                        {res.type === "ATTRIBUTE" ? (
+                          <span>+{res.points} bonus to {res.category} attribute</span>
+                        ) : res.type === "SKILL" ? (
+                          <span>Gain {res.points} point in skill: {res.name}</span>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+          {mode === 'manual' && (
+            <div>
+              <h4>Manual Choices (Select 2):</h4>
+              {selectedBackground.manual_table && Object.values(selectedBackground.manual_table)
+                .filter(option => option.name.toLowerCase() !== "any" && option.name.toLowerCase() !== "any combat")
+                .map(option => (
+                  <button
+                    key={`${option.name}-${option.points}`}
+                    onClick={() => {
+                      if (manualChoices.length < 2) {
+                        setManualChoices(prev => [...prev, option]);
+                      }
+                    }}
+                    style={{ margin: '5px' }}
+                  >
+                    {option.name} ({option.points} point{option.points > 1 ? 's' : ''})
+                  </button>
+                ))}
+              <p>Selected: {manualChoices.map(choice => choice.name).join(', ')}</p>
+            </div>
+          )}
+          {pendingAnySkills.length > 0 && (
+            <div className="card" style={{ marginTop: '20px', padding: '10px' }}>
+              <h4>Select your bonus skill(s):</h4>
+              {pendingAnySkills.map((anySkill, index) => {
+                // STEP 3 IMPLEMENTATION: Filter out options already chosen in ANY picks.
+                const resolvedAnySkills = computedResults
+                  .filter(r => r.type === "SKILL" && r.name.toLowerCase() !== "any" && r.name.toLowerCase() !== "any_combat")
+                  .map(r => r.name.toLowerCase());
+                const skillList = (anySkill === "any_combat" ? ANY_COMBAT_OPTIONS : ANY_AVAILABLE_SKILLS)
+                  .filter(skill => !resolvedAnySkills.includes(skill.toLowerCase()));
+                return (
+                  <div key={index} style={{ margin: '10px 0' }}>
+                    <p>ANY skill pick #{index + 1} ({anySkill === "any_combat" ? 'Combat skill' : 'Any skill'}):</p>
+                    {skillList.map(skill => (
+                      <button
+                        key={skill}
+                        onClick={() => handleAnySkillSelection(index, skill)}
+                        style={{ margin: '5px' }}
+                      >
+                        {skill}
+                      </button>
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {bonusResults.length > 0 && bonusResults.map((bonusRes, index) => (
+            <BonusAttributeDistribution
+              key={index}
+              distribution={bonusRes}
+              onComplete={(finalAssignment) => handleBonusDistributionComplete(index, finalAssignment)}
+            />
+          ))}
+          <div style={{ marginTop: '20px' }}>
+            <button onClick={handleConfirm}>Confirm Background Selection</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 };
 
-
-    return (
-        <div className="card">
-          <h2>Background Selection</h2>
-          {error && <div style={{color: 'red'}}>{error}</div>}
-          {!selectedBackground ? (
-              <div>
-                <h3>Choose a Background:</h3>
-                <ul>
-                  {backgrounds.map(bg => (
-                      <li key={bg.id}>
-                        <button onClick={() => handleBackgroundSelect(bg)}>
-                          <strong>{bg.name}</strong>: {bg.description}<br/>
-                          Free Skill: {bg.free_skill}
-                        </button>
-                      </li>
-                  ))}
-                </ul>
-              </div>
-          ) : (
-              <div>
-                <h3>{selectedBackground.name} Selected</h3>
-                <p>{selectedBackground.description}</p>
-                <p>Free Skill: {selectedBackground.free_skill}</p>
-                <div>
-                  <label>
-                    <input
-                        type="radio"
-                        value="roll"
-                        checked={mode === 'roll'}
-                        onChange={() => {
-                          setMode('roll');
-                          setError(null);
-                        }}
-                    />
-                    Roll-based Selection
-                  </label>
-                  <label style={{marginLeft: '20px'}}>
-                    <input
-                        type="radio"
-                        value="manual"
-                        checked={mode === 'manual'}
-                        onChange={() => {
-                          setMode('manual');
-                          setError(null);
-                        }}
-                    />
-                    Manual Selection
-                  </label>
-                </div>
-                {mode === 'roll' && (
-                    <div>
-                      <h4>Roll Dice (3 rolls total):</h4>
-                      <button
-                          onClick={() => handleRoll('growth')}
-                          disabled={(rollData.growth_rolls.length + rollData.learning_rolls.length) >= 3}
-                      >
-                        Roll d6 for Growth
-                      </button>
-                      <button
-                          onClick={() => handleRoll('learning')}
-                          disabled={(rollData.growth_rolls.length + rollData.learning_rolls.length) >= 3}
-                          style={{marginLeft: '10px'}}
-                      >
-                        Roll d8 for Learning
-                      </button>
-                      <div>
-                        <p>Growth Rolls: {rollData.growth_rolls.join(', ')}</p>
-                        <p>Learning Rolls: {rollData.learning_rolls.join(', ')}</p>
-                      </div>
-                      {computedResults.length > 0 && (
-                          <div>
-                            <h4>Results:</h4>
-                            <ul>
-                              {computedResults.map((res, idx) => (
-                                  <li key={idx}>
-                                    {res.type === "ATTRIBUTE" ? (
-                                        <span>+{res.points} bonus to {res.category} attribute</span>
-                                    ) : res.type === "SKILL" ? (
-                                        <span>Gain {res.points} point in skill: {res.name}</span>
-                                    ) : null}
-                                  </li>
-                              ))}
-                            </ul>
-                          </div>
-                      )}
-                    </div>
-                )}
-                {mode === 'manual' && (
-                    <div>
-                      <h4>Manual Choices (Select 2):</h4>
-                      {selectedBackground.manual_table && Object.values(selectedBackground.manual_table)
-                          .filter(option => option.name.toLowerCase() !== "any" && option.name.toLowerCase() !== "any combat")
-                          .map(option => (
-                              <button
-                                  key={option.name + option.points}
-                                  onClick={() => {
-                                    if (manualChoices.length < 2 && !manualChoices.find(c => c.name === option.name)) {
-                                      setManualChoices(prev => [...prev, option]);
-                                    }
-                                  }}
-                                  style={{margin: '5px'}}
-                                  disabled={manualChoices.length >= 2 && !manualChoices.find(c => c.name === option.name)}
-                              >
-                                {option.name} ({option.points} point{option.points > 1 ? 's' : ''})
-                              </button>
-                          ))}
-                      <p>Selected: {manualChoices.map(choice => choice.name).join(', ')}</p>
-                    </div>
-                )}
-                {pendingAnySkill && (
-                    <div className="card" style={{marginTop: '20px', padding: '10px'}}>
-                      <h4>Select your bonus skill:</h4>
-                      {(pendingAnySkill === "any_combat" ? ANY_COMBAT_OPTIONS : ANY_AVAILABLE_SKILLS).map(skill => (
-                          <button
-                              key={skill}
-                              onClick={() => handleAnySkillSelection(skill)}
-                              style={{margin: '5px'}}
-                          >
-                            {skill}
-                          </button>
-                      ))}
-                    </div>
-                )}
-                {bonusResult && (
-                    <div className="card" style={{marginTop: '20px', padding: '10px'}}>
-                      <h4>
-                        Distribute {bonusResult.points} bonus point(s) for {bonusResult.category} attribute:
-                      </h4>
-                      {allowedAttributes.map(attr => (
-                          <div key={attr}>
-                            <label>{attr}: </label>
-                            <input
-                                type="number"
-                                min="0"
-                                max={bonusResult.points}
-                                value={attributeBonusAssignments[attr] || 0}
-                                onChange={(e) => handleBonusChange(attr, e.target.value)}
-                            />
-                          </div>
-                      ))}
-                      <p>Total assigned: {sumAssigned}</p>
-                      {sumAssigned !== bonusResult.points && (
-                          <p style={{color: 'red'}}>
-                            Please assign exactly {bonusResult.points} point(s).
-                          </p>
-                      )}
-                    </div>
-                )}
-                <div style={{marginTop: '20px'}}>
-                  <button onClick={handleConfirm}>Confirm Background Selection</button>
-                </div>
-              </div>
-          )}
-        </div>
-    );
-  };
-}
 export default BackgroundCreation;
 
+// STEP 3 IMPLEMENTATION: BonusAttributeDistribution component remains largely unchanged.
 const BonusAttributeDistribution = ({ distribution, onComplete }) => {
-  // Determine allowed attributes based on the category.
   let allowedAttributes = [];
   const category = distribution.category.toUpperCase();
   if (category === "ANY") {
@@ -855,33 +868,24 @@ const BonusAttributeDistribution = ({ distribution, onComplete }) => {
     allowedAttributes = ["intelligence", "wisdom", "charisma"];
   }
 
-  // Initialize bonus assignments to zero for each allowed attribute.
   const initialAssignments = allowedAttributes.reduce((acc, attr) => {
     acc[attr] = 0;
     return acc;
   }, {});
-
   const [assignments, setAssignments] = useState(initialAssignments);
   const totalAssigned = Object.values(assignments).reduce((sum, val) => sum + Number(val), 0);
-  const [pendingDistributions, setPendingDistributions] = useState([]);
-  // Handle input changes for each attribute.
+  const isComplete = totalAssigned === distribution.points;
+
   const handleChange = (attr, value) => {
     const numericValue = Math.max(0, parseInt(value, 10) || 0);
     setAssignments(prev => ({ ...prev, [attr]: numericValue }));
   };
-    const handleDistributionComplete = (dist, finalAssignment) => {
-  // Merge the completed distribution result into computedResults
-  setComputedResults(prev => [...prev, { ...dist, assigned_attributes: finalAssignment }]);
-  // Remove this distribution from pendingDistributions.
-  setPendingDistributions(prev => prev.filter(d => d !== dist));
-};
-  const [computedResults, setComputedResults] = useState([]); // results from dice rolls
-  // The Confirm button is enabled only when the total equals distribution.points.
-  const isComplete = totalAssigned === distribution.points;
 
   return (
     <div className="card" style={{ marginTop: '20px', padding: '10px' }}>
-      <h4>Distribute {distribution.points} bonus point{distribution.points > 1 ? 's' : ''} ({distribution.category})</h4>
+      <h4>
+        Distribute {distribution.points} bonus point{distribution.points > 1 ? 's' : ''} for {distribution.category} attribute:
+      </h4>
       {allowedAttributes.map(attr => (
         <div key={attr} style={{ marginBottom: '10px' }}>
           <label style={{ textTransform: 'capitalize' }}>
@@ -899,23 +903,11 @@ const BonusAttributeDistribution = ({ distribution, onComplete }) => {
       ))}
       <p>Total assigned: {totalAssigned}</p>
       {!isComplete && (
-        <p style={{ color: 'red' }}>Please assign exactly {distribution.points} point(s).</p>
+        <p style={{ color: 'red' }}>
+          Please assign exactly {distribution.points} point{distribution.points > 1 ? 's' : ''}.
+        </p>
       )}
-      {pendingDistributions.length > 0 && (
-  <div>
-    {pendingDistributions.map((dist, idx) => (
-      <BonusAttributeDistribution
-        key={idx}
-        distribution={dist}
-        onComplete={(finalAssignment) => handleDistributionComplete(dist, finalAssignment)}
-      />
-    ))}
-  </div>
-)}
-      <button
-        onClick={() => onComplete(assignments)}
-        disabled={!isComplete}
-      >
+      <button onClick={() => onComplete(assignments)} disabled={!isComplete}>
         Confirm Distribution
       </button>
     </div>
@@ -3004,48 +2996,85 @@ class BackgroundViewSet(viewsets.ReadOnlyModelViewSet):
 ----- .\server\characters\services\modifiers.py -----
 
 # server/characters/services/modifiers.py
+
 from characters.models import CharacterSkill, Skill
 
-for mod in modifiers:
-    if mod['modifier_type'] == 'ATTRIBUTE':
-        category = mod.get('category', '').upper()
-        points = mod.get('points', 0)
 
-        # Skip auto-assignment for user-chosen categories
-        if category in ['ANY', 'PHYSICAL', 'MENTAL']:
-            # We do nothing here; the front-end handles distribution
-            pass
-        else:
-            # Example: If the category is a specific attribute like 'STRENGTH'
-            # you might do something like this:
+def apply_modifiers(character, modifiers):
+    """
+    Applies the given modifiers to the character.
+    Per your instructions and the SRD:
+    - No skill should exceed level-1 during character creation.
+    - Attributes should be capped at 18.
+    - 'ANY', 'PHYSICAL', or 'MENTAL' attribute bonuses are assigned on the front end,
+      so we skip direct changes here unless there's a single specific attribute.
+    """
+
+    for mod in modifiers:
+        if mod['modifier_type'] == 'ATTRIBUTE':
+            category = mod.get('category', '').upper()
+            points = mod.get('points', 0)
+
+            # If the category is a generic 'ANY', 'PHYSICAL', or 'MENTAL',
+            # we do nothing, because the front end’s bonus_distribution
+            # approach handles assigning it to a specific attribute.
+            # But if the category is an actual single attribute like 'STRENGTH',
+            # we can do something like this:
             #
             # if category == 'STRENGTH':
             #     current_val = character.strength
             #     new_val = min(current_val + points, 18)
             #     character.strength = new_val
             #
-            # (Repeat as needed for other specific attribute categories.)
-            pass
+            # (And similarly for DEXTERITY, etc.)
+            # For now, we'll just skip it unless you implement that logic:
+            if category not in ['ANY', 'PHYSICAL', 'MENTAL']:
+                # Example: a single specific attribute category
+                if category == 'STRENGTH':
+                    new_val = min(character.strength + points, 18)
+                    character.strength = new_val
+                elif category == 'DEXTERITY':
+                    new_val = min(character.dexterity + points, 18)
+                    character.dexterity = new_val
+                # etc. for other attributes if you want
+            # Otherwise, do nothing.
+
         elif mod['modifier_type'] == 'SKILL':
             skill_name = mod.get('skill_name')
             if not skill_name:
-                continue  # Skip if no skill is specified.
+                continue  # or raise an error if skill_name is missing
+
             try:
                 skill_obj = Skill.objects.get(name__iexact=skill_name)
             except Skill.DoesNotExist:
-                continue  # Alternatively, you could raise an error.
+                # If the skill doesn't exist, skip or raise an error
+                continue
+
+            # The base "points" we’re awarding
+            bonus_points = mod.get('points', 0)
 
             cs = CharacterSkill.objects.filter(character=character, skill=skill_obj).first()
-            bonus_points = mod.get('points', 0)
             if cs is None:
-                # Award bonus: if bonus is 1, create with level 0; if bonus >= 2, create with level 1.
-                initial_level = 0 if bonus_points == 1 else 1
+                # If we had never picked this skill at all, create a new record.
+                # Typically, picking a skill once sets it to level-0, picking it twice sets to level-1,
+                # so awarding 1 "point" might be enough to make it level-0 or level-1.
+                if bonus_points == 1:
+                    # That’s typically level-0 on the first pick
+                    initial_level = 0
+                else:
+                    # if bonus_points >= 2, that might be enough to push it to level-1
+                    initial_level = 1
+                # But because you never exceed level-1 in creation:
+                initial_level = min(initial_level, 1)
                 CharacterSkill.objects.create(character=character, skill=skill_obj, level=initial_level)
             else:
-                # Upgrade if possible, but cap at level 1 during creation.
+                # If we already have the skill at level-0, awarding it again sets it to level-1,
+                # but never above 1 at creation time.
+                # (If you want to allow level-2 after creation, that’s a separate pipeline.)
                 if cs.level == 0 and bonus_points >= 1:
-                    cs.level = 1
+                    cs.level = min(1, cs.level + 1)  # ensure it caps at level-1
                     cs.save()
+
     character.save()
 
 

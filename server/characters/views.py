@@ -1,9 +1,8 @@
 from rest_framework import viewsets, permissions, serializers
 from rest_framework.response import Response
-from .models import Character, Background, Skill, CharacterSkill
+from .models import Character, Background, Skill, CharacterSkill, Contact
 from .serializers import CharacterSerializer, BackgroundSerializer, SkillSerializer
 from .services.modifiers import apply_modifiers
-
 
 def apply_background_selection(character, selection):
     # Assign the selected background.
@@ -43,7 +42,6 @@ def apply_background_selection(character, selection):
                 'modifier_type': "ATTRIBUTE",
                 'category': item.get('category'),
                 'points': item.get('points', 0),
-                # No assignment here; bonus_distribution will handle the split.
             })
         elif item.get('type') == "SKILL":
             modifiers.append({
@@ -54,7 +52,7 @@ def apply_background_selection(character, selection):
     # Apply the standard modifiers.
     apply_modifiers(character, modifiers)
 
-    # NEW: Process bonus distribution if provided.
+    # Process bonus distribution if provided.
     bonus_distribution = selection.get('bonus_distribution')
     if bonus_distribution:
         for bonus in bonus_distribution:
@@ -85,12 +83,10 @@ def apply_background_selection(character, selection):
     character.creation_data = creation_data
     character.save()
 
-
 class SkillViewSet(viewsets.ModelViewSet):
     queryset = Skill.objects.all()
     serializer_class = SkillSerializer
     permission_classes = [permissions.IsAuthenticated]
-
 
 class CharacterViewSet(viewsets.ModelViewSet):
     queryset = Character.objects.all()
@@ -106,40 +102,25 @@ class CharacterViewSet(viewsets.ModelViewSet):
         return super().get_queryset().filter(user=self.request.user)
 
     def update(self, request, *args, **kwargs):
+        # Pop background_selection from payload if present
         background_selection = request.data.pop('background_selection', None)
         character = self.get_object()
 
-        # First, update any other fields provided.
+        # Update the character with other fields (including contacts payload if provided)
         serializer = self.get_serializer(character, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
 
-        # Then, if background_selection is provided, apply it.
+        # If background_selection was sent, process it.
         if background_selection:
             try:
                 apply_background_selection(character, background_selection)
             except serializers.ValidationError as e:
                 return Response({"detail": e.detail}, status=400)
-            # Reload serializer to reflect background changes.
+            # Reload serializer to reflect changes from background_selection
             serializer = self.get_serializer(character)
 
         return Response(serializer.data)
-
-        # Otherwise, update other fields then apply background_selection.
-        serializer = self.get_serializer(character, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        self.perform_update(serializer)
-
-        if background_selection:
-            try:
-                apply_background_selection(character, background_selection)
-            except serializers.ValidationError as e:
-                return Response({"detail": e.detail}, status=400)
-            # Reload serializer data to include background changes.
-            serializer = self.get_serializer(character)
-
-        return Response(serializer.data)
-
 
 class BackgroundViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Background.objects.all()
