@@ -1,8 +1,78 @@
 from rest_framework import viewsets, permissions, serializers
 from rest_framework.response import Response
-from .models import Character, Background, Skill, CharacterSkill, Contact
-from .serializers import CharacterSerializer, BackgroundSerializer, SkillSerializer
+from .models import Character, Background, Skill, CharacterSkill, Contact, Edge, CharacterEdge
+from .serializers import CharacterSerializer, BackgroundSerializer, SkillSerializer, ContactSerializer, EdgeSerializer
 from .services.modifiers import apply_modifiers
+
+def apply_edge_selection(character, selection):
+    """
+    Applies the chosen edge selection to the given character.
+    Expects 'selection' to be a dictionary with an "edges" key containing a list
+    of objects with: { id, rank, any_skill_choice } and an optional key "used_underdog".
+    For each edge:
+      - Creates a CharacterEdge record.
+      - Applies immediate effects (e.g., GRANT_SKILL, MOD_FORMULA, MOD_TRAUMA_TARGET)
+        via our apply_modifiers function or by storing values in character.creation_data.
+    """
+    edges_list = selection.get("edges")
+    if edges_list is None:
+        raise serializers.ValidationError("No edges provided in edge_selection.")
+
+    # Replace any existing character edges
+    character.character_edges.all().delete()
+
+    for edge_item in edges_list:
+        edge_id = edge_item.get("id")
+        rank = edge_item.get("rank", 1)
+        any_skill_choice = edge_item.get("any_skill_choice", None)
+
+        try:
+            edge_obj = Edge.objects.get(id=edge_id)
+        except Edge.DoesNotExist:
+            raise serializers.ValidationError(f"Edge with id {edge_id} does not exist.")
+
+        # Create the pivot record for this edge
+        CharacterEdge.objects.create(character=character, edge=edge_obj, rank=rank)
+
+        # Process any immediate effects from the edge's effect_data
+        if edge_obj.effect_data:
+            for effect in edge_obj.effect_data:
+                effect_type = effect.get("type")
+                if effect_type == "GRANT_SKILL":
+                    skill_name = effect.get("skill_name")
+                    # For "ANY" or "ANY_COMBAT" choices, use the user's selection
+                    if skill_name in ["ANY", "ANY_COMBAT"]:
+                        if not any_skill_choice:
+                            raise serializers.ValidationError(
+                                f"Edge '{edge_obj.name}' requires a specific skill choice."
+                            )
+                        chosen_skill = any_skill_choice
+                    else:
+                        chosen_skill = skill_name
+                    modifier = {
+                        "modifier_type": "SKILL",
+                        "skill_name": chosen_skill,
+                        "points": effect.get("points", 0)
+                    }
+                    apply_modifiers(character, [modifier])
+                elif effect_type == "MOD_FORMULA":
+                    creation_data = character.creation_data or {}
+                    creation_data['hp_formula'] = effect.get("value")
+                    character.creation_data = creation_data
+                elif effect_type == "MOD_TRAUMA_TARGET":
+                    creation_data = character.creation_data or {}
+                    creation_data.setdefault('trauma_target_mod', 0)
+                    creation_data['trauma_target_mod'] += effect.get("amount", 0)
+                    character.creation_data = creation_data
+                # (Add additional effect types here as needed.)
+    # If the selection payload indicates used_underdog, store that flag.
+    if selection.get("used_underdog"):
+        creation_data = character.creation_data or {}
+        creation_data['used_underdog'] = True
+        character.creation_data = creation_data
+
+    character.save()
+
 
 def apply_background_selection(character, selection):
     # Assign the selected background.
@@ -102,27 +172,10 @@ class CharacterViewSet(viewsets.ModelViewSet):
         return super().get_queryset().filter(user=self.request.user)
 
     def update(self, request, *args, **kwargs):
-        # Pop background_selection from payload if present
+        # Pop background_selection and edge_selection from payload if present
         background_selection = request.data.pop('background_selection', None)
+        edge_selection = request.data.pop('edge_selection', None)
         character = self.get_object()
 
         # Update the character with other fields (including contacts payload if provided)
-        serializer = self.get_serializer(character, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        self.perform_update(serializer)
-
-        # If background_selection was sent, process it.
-        if background_selection:
-            try:
-                apply_background_selection(character, background_selection)
-            except serializers.ValidationError as e:
-                return Response({"detail": e.detail}, status=400)
-            # Reload serializer to reflect changes from background_selection
-            serializer = self.get_serializer(character)
-
-        return Response(serializer.data)
-
-class BackgroundViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = Background.objects.all()
-    serializer_class = BackgroundSerializer
-    permission_classes = [permissions.IsAuthenticated]
+        serializer = self.get

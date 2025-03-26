@@ -62,6 +62,7 @@ import AttributeCreationStarter from './components/AttributeCreationStarter';
 import NewCharacterChoice from './components/NewCharacterChoice';
 import BackgroundCreation from './components/BackgroundCreation';
 import Contacts from './components/Contacts';
+import Edges from './components/Edges';
 
 function App() {
   return (
@@ -78,7 +79,7 @@ function App() {
             <Route path="/new/discover" element={<ProtectedRoute><AttributeCreationStarter /></ProtectedRoute>} />
             <Route path="/characters/:id/attributes" element={<ProtectedRoute><AttributeCreationWrapper /></ProtectedRoute>} />
             <Route path="/characters/:id/backgrounds" element={<ProtectedRoute><BackgroundCreation /></ProtectedRoute>} />
-
+            <Route path="/edges" element={<ProtectedRoute><Edges /></ProtectedRoute>} />
             <Route path="/characters/:id/contacts" element={<ProtectedRoute><Contacts /></ProtectedRoute>} />
 
             {/* Moved this route correctly inside the Layout */}
@@ -1089,18 +1090,167 @@ export default CharacterList;
 ----- .\client\src\components\Contacts.js -----
 
 // client/src/components/Contacts.js
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import api from '../services/api';
+
+const CONTACT_OPTIONS = {
+  acquaintances: 2,
+  friend: 1
+};
 
 const Contacts = () => {
+  const navigate = useNavigate();
+  const { id: characterId } = useParams(); // Assume character id is passed via URL
+
+  // State to hold whether the user chooses "2 Acquaintances" or "1 Friend"
+  const [contactOption, setContactOption] = useState('acquaintances');
+  // State for the list of contacts (each with name, relationship_type, description)
+  const [contacts, setContacts] = useState([]);
+  // State for error messages
+  const [error, setError] = useState('');
+
+  // Initialize contacts based on the selected option
+  useEffect(() => {
+    const requiredCount = CONTACT_OPTIONS[contactOption];
+    const initialContacts = [];
+    for (let i = 0; i < requiredCount; i++) {
+      initialContacts.push({
+        name: '',
+        relationship_type: contactOption, // preset from the radio selection
+        description: ''
+      });
+    }
+    setContacts(initialContacts);
+  }, [contactOption]);
+
+  const handleContactChange = (index, field, value) => {
+    const updatedContacts = [...contacts];
+    updatedContacts[index][field] = value;
+    setContacts(updatedContacts);
+  };
+
+  const handleConfirm = async (e) => {
+    e.preventDefault();
+    setError('');
+
+    // Validate that each contact has a non-empty name.
+    for (let i = 0; i < contacts.length; i++) {
+      if (!contacts[i].name.trim()) {
+        setError(`Please provide a name for Contact #${i + 1}.`);
+        return;
+      }
+    }
+
+    // Build payload for PATCH: include contacts array and mark the contacts step complete.
+    const payload = {
+      contacts: contacts,
+      creation_data: { contacts_completed: true }
+    };
+
+    try {
+      // Send PATCH request to update the character.
+      await api.patch(`/characters/${characterId}/`, payload);
+      // Navigate to the next step - placeholder for Edges.
+      navigate('/edges');
+    } catch (err) {
+      console.error("Error updating contacts:", err);
+      setError("There was an error saving your contacts. Please try again.");
+    }
+  };
+
   return (
     <div className="card">
-      <h2>Contacts (Coming Soon)</h2>
-      <p>This is a placeholder for the Contacts step in character creation.</p>
+      <h2>Contacts</h2>
+      <p>Select how you’d like to start your contacts:</p>
+      <div>
+        <label>
+          <input
+            type="radio"
+            value="acquaintances"
+            checked={contactOption === 'acquaintances'}
+            onChange={() => setContactOption('acquaintances')}
+          />
+          2 Acquaintances
+        </label>
+        <label style={{ marginLeft: '20px' }}>
+          <input
+            type="radio"
+            value="friend"
+            checked={contactOption === 'friend'}
+            onChange={() => setContactOption('friend')}
+          />
+          1 Friend
+        </label>
+      </div>
+      <hr />
+      <form onSubmit={handleConfirm}>
+        {contacts.map((contact, index) => (
+          <div key={index} style={{ marginBottom: '15px' }}>
+            <h4>Contact #{index + 1}</h4>
+            <div>
+              <label>
+                Name:
+                <input
+                  type="text"
+                  value={contact.name}
+                  onChange={(e) => handleContactChange(index, 'name', e.target.value)}
+                  required
+                />
+              </label>
+            </div>
+            <div>
+              <label>
+                Relationship Type:
+                <input
+                  type="text"
+                  value={contact.relationship_type}
+                  readOnly
+                  style={{ marginLeft: '10px' }}
+                />
+              </label>
+            </div>
+            <div>
+              <label>
+                Description (optional):
+                <input
+                  type="text"
+                  value={contact.description}
+                  onChange={(e) => handleContactChange(index, 'description', e.target.value)}
+                  style={{ marginLeft: '10px' }}
+                />
+              </label>
+            </div>
+          </div>
+        ))}
+        {error && <div style={{ color: 'red', marginBottom: '10px' }}>{error}</div>}
+        <button type="submit">Confirm Contacts</button>
+      </form>
+      <div style={{ marginTop: '20px' }}>
+        <p>Step 4 of [Total Steps]: Contacts</p>
+      </div>
     </div>
   );
 };
 
 export default Contacts;
+
+
+----- .\client\src\components\Edges.js -----
+
+// client/src/components/Edges.js
+import React from 'react';
+
+const Edges = () => {
+  return (
+    <div className="card">
+      <h2>Edges Selection (Coming Soon)</h2>
+      <p>This is a placeholder for the Edges selection step in the character creation wizard.</p>
+    </div>
+  );
+};
+
+export default Edges;
 
 
 ----- .\client\src\components\Home.js -----
@@ -1423,6 +1573,7 @@ export default Register;
 
 ----- .\client\src\components\ViewCharacter.js -----
 
+// client/src/components/ViewCharacter.js
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import api from '../services/api';
@@ -1472,6 +1623,18 @@ const ViewCharacter = () => {
         </div>
       ) : (
         <p>No background selected.</p>
+      )}
+      <h3>Contacts</h3>
+      {character.contacts && character.contacts.length > 0 ? (
+        <ul>
+          {character.contacts.map((contact) => (
+            <li key={contact.id}>
+              <strong>{contact.name}</strong> ({contact.relationship_type}) – {contact.description}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p>No contacts have been added yet.</p>
       )}
       <h3>Acquired Skills</h3>
       {character.skills && character.skills.length > 0 ? (
@@ -1666,10 +1829,11 @@ if __name__ == '__main__':
 
 # server/characters/admin.py
 from django.contrib import admin
-from .models import Background, Skill
+from .models import Background, Skill, Contact
 
 admin.site.register(Background)
 admin.site.register(Skill)
+admin.site.register(Contact)
 
 ----- .\server\characters\apps.py -----
 
@@ -1687,7 +1851,7 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.db.models import JSONField
 
-# Background, Archetype, and Skill models will be expanded later.
+
 class Background(models.Model):
     name = models.CharField(max_length=100, unique=True)
     description = models.TextField(blank=True)
@@ -1702,10 +1866,8 @@ class Background(models.Model):
         return self.name
 
 class Archetype(models.Model):
-    # This will eventually combine the concepts of Edges and Classes.
     name = models.CharField(max_length=100, unique=True)
     description = models.TextField(blank=True)
-    # Additional fields (prerequisites, bonuses, etc.) can be added later.
 
     def __str__(self):
         return self.name
@@ -1713,8 +1875,7 @@ class Archetype(models.Model):
 class Skill(models.Model):
     name = models.CharField(max_length=100, unique=True)
     description = models.TextField(blank=True)
-    category = models.CharField(max_length=50, blank=True)  # e.g., combat, technical, social
-    # Every skill starts with no bonus, so default modifier is -1.
+    category = models.CharField(max_length=50, blank=True)
     default_modifier = models.IntegerField(default=-1)
 
     def __str__(self):
@@ -1723,7 +1884,7 @@ class Skill(models.Model):
 class Character(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='characters')
     name = models.CharField(max_length=100)
-    goal = models.CharField(max_length=255, blank=True)  # Final narrative goal
+    goal = models.CharField(max_length=255, blank=True)
 
     # Basic Attributes
     strength = models.PositiveIntegerField(default=10)
@@ -1743,13 +1904,15 @@ class Character(models.Model):
                                    null=True, blank=True, related_name='characters')
     archetypes = models.ManyToManyField(Archetype, blank=True, related_name='characters')
     skills = models.ManyToManyField(Skill, through='CharacterSkill', blank=True, related_name='characters')
-    # Future models: Contacts, Cyberware, Vehicles, Items, etc.
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return f"{self.name} ({self.user.username})"
+
+    def contact_list(self):
+        return self.contacts.all()
 
 class CharacterSkill(models.Model):
     character = models.ForeignKey(Character, on_delete=models.CASCADE)
@@ -1790,15 +1953,36 @@ class Modifier(models.Model):
 
     def __str__(self):
         return f"{self.source} (ID: {self.source_id}) - {self.modifier_type}: {self.points}"
+class Contact(models.Model):
+    RELATIONSHIP_CHOICES = [
+        ('acquaintance', 'Acquaintance'),
+        ('friend', 'Friend'),
+    ]
+    character = models.ForeignKey(Character, on_delete=models.CASCADE, related_name='contacts')
+    name = models.CharField(max_length=100)
+    relationship_type = models.CharField(max_length=20, choices=RELATIONSHIP_CHOICES)
+    description = models.TextField(blank=True)  # Optional additional context
 
+    def __str__(self):
+        return f"{self.name} ({self.get_relationship_type_display()})"
 
 
 ----- .\server\characters\serializers.py -----
 
 from rest_framework import serializers
-from .models import Character, CharacterSkill, Skill, Background
+from .models import Character, CharacterSkill, Skill, Background, Contact
 
+class ContactSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Contact
+        fields = ['id', 'name', 'relationship_type', 'description']
 
+class CharacterSkillSerializer(serializers.ModelSerializer):
+    effective_modifier = serializers.IntegerField()
+
+    class Meta:
+        model = CharacterSkill
+        fields = ['skill', 'level', 'effective_modifier']
 class CharacterSkillSerializer(serializers.ModelSerializer):
     effective_modifier = serializers.IntegerField
 
@@ -1808,13 +1992,46 @@ class CharacterSkillSerializer(serializers.ModelSerializer):
 
 
 class CharacterSerializer(serializers.ModelSerializer):
-    # Here we include the character’s skills (via the join table).
     skills = CharacterSkillSerializer(source='characterskill_set', many=True, read_only=True)
+    # Make contacts writable by removing read_only=True and setting required=False.
+    contacts = ContactSerializer(many=True, required=False)
 
     class Meta:
         model = Character
         fields = '__all__'
         read_only_fields = ['user', 'created_at', 'updated_at']
+
+    def update(self, instance, validated_data):
+        # Pop contacts data if provided in the payload.
+        contacts_data = validated_data.pop('contacts', None)
+
+        # Perform the standard update of other fields.
+        instance = super().update(instance, validated_data)
+
+        if contacts_data is not None:
+            # Enforce the SRD rule:
+            # Either exactly 2 contacts of type "acquaintance" OR exactly 1 of type "friend"
+            num_acquaintances = sum(1 for c in contacts_data if c.get('relationship_type') == 'acquaintance')
+            num_friends = sum(1 for c in contacts_data if c.get('relationship_type') == 'friend')
+            if not ((num_acquaintances == 2 and num_friends == 0) or (num_friends == 1 and num_acquaintances == 0)):
+                raise serializers.ValidationError(
+                    "Contacts must be either exactly two acquaintances or exactly one friend."
+                )
+
+            # Remove any existing contacts for this character.
+            instance.contacts.all().delete()
+
+            # Create new contacts from the payload.
+            for contact_data in contacts_data:
+                Contact.objects.create(character=instance, **contact_data)
+
+            # Mark the contacts step as complete in creation_data.
+            creation_data = instance.creation_data or {}
+            creation_data['contacts_completed'] = True
+            instance.creation_data = creation_data
+
+        instance.save()
+        return instance
 
 class SkillSerializer(serializers.ModelSerializer):
     class Meta:
@@ -1837,10 +2054,9 @@ from django.test import TestCase
 
 from rest_framework import viewsets, permissions, serializers
 from rest_framework.response import Response
-from .models import Character, Background, Skill, CharacterSkill
+from .models import Character, Background, Skill, CharacterSkill, Contact
 from .serializers import CharacterSerializer, BackgroundSerializer, SkillSerializer
 from .services.modifiers import apply_modifiers
-
 
 def apply_background_selection(character, selection):
     # Assign the selected background.
@@ -1880,7 +2096,6 @@ def apply_background_selection(character, selection):
                 'modifier_type': "ATTRIBUTE",
                 'category': item.get('category'),
                 'points': item.get('points', 0),
-                # No assignment here; bonus_distribution will handle the split.
             })
         elif item.get('type') == "SKILL":
             modifiers.append({
@@ -1891,7 +2106,7 @@ def apply_background_selection(character, selection):
     # Apply the standard modifiers.
     apply_modifiers(character, modifiers)
 
-    # NEW: Process bonus distribution if provided.
+    # Process bonus distribution if provided.
     bonus_distribution = selection.get('bonus_distribution')
     if bonus_distribution:
         for bonus in bonus_distribution:
@@ -1922,12 +2137,10 @@ def apply_background_selection(character, selection):
     character.creation_data = creation_data
     character.save()
 
-
 class SkillViewSet(viewsets.ModelViewSet):
     queryset = Skill.objects.all()
     serializer_class = SkillSerializer
     permission_classes = [permissions.IsAuthenticated]
-
 
 class CharacterViewSet(viewsets.ModelViewSet):
     queryset = Character.objects.all()
@@ -1943,40 +2156,25 @@ class CharacterViewSet(viewsets.ModelViewSet):
         return super().get_queryset().filter(user=self.request.user)
 
     def update(self, request, *args, **kwargs):
+        # Pop background_selection from payload if present
         background_selection = request.data.pop('background_selection', None)
         character = self.get_object()
 
-        # First, update any other fields provided.
+        # Update the character with other fields (including contacts payload if provided)
         serializer = self.get_serializer(character, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
 
-        # Then, if background_selection is provided, apply it.
+        # If background_selection was sent, process it.
         if background_selection:
             try:
                 apply_background_selection(character, background_selection)
             except serializers.ValidationError as e:
                 return Response({"detail": e.detail}, status=400)
-            # Reload serializer to reflect background changes.
+            # Reload serializer to reflect changes from background_selection
             serializer = self.get_serializer(character)
 
         return Response(serializer.data)
-
-        # Otherwise, update other fields then apply background_selection.
-        serializer = self.get_serializer(character, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        self.perform_update(serializer)
-
-        if background_selection:
-            try:
-                apply_background_selection(character, background_selection)
-            except serializers.ValidationError as e:
-                return Response({"detail": e.detail}, status=400)
-            # Reload serializer data to include background changes.
-            serializer = self.get_serializer(character)
-
-        return Response(serializer.data)
-
 
 class BackgroundViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Background.objects.all()

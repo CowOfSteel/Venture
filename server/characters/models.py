@@ -16,12 +16,45 @@ class Background(models.Model):
     def __str__(self):
         return self.name
 
-class Archetype(models.Model):
+
+class Edge(models.Model):
     name = models.CharField(max_length=100, unique=True)
     description = models.TextField(blank=True)
 
+    EDGE_CATEGORY_CHOICES = [
+        ('COMMON', 'Common'),
+        ('MAGICAL', 'Magical'),
+    ]
+    category = models.CharField(max_length=20, choices=EDGE_CATEGORY_CHOICES, default='COMMON')
+
+    # Allow multiple picks if true (e.g., Focused can be taken more than once)
+    multi_allowed = models.BooleanField(default=False)
+
+    # Optional prerequisites; for future expansion (e.g., "no_underdog": True)
+    prerequisites = JSONField(blank=True, null=True)
+
+    # Store all mechanical effects as JSON data (e.g., skill grants, attribute mods, etc.)
+    effect_data = JSONField(blank=True, null=True)
+
+    # Optional textual notes for usage or ephemeral instructions
+    usage_notes = models.TextField(blank=True)
+
     def __str__(self):
         return self.name
+
+
+class CharacterEdge(models.Model):
+    character = models.ForeignKey('Character', on_delete=models.CASCADE, related_name='character_edges')
+    edge = models.ForeignKey(Edge, on_delete=models.CASCADE, related_name='character_edges')
+
+    # Track if an edge is taken more than once (e.g., Focused)
+    rank = models.PositiveSmallIntegerField(default=1)
+
+    # For future ephemeral usage tracking (e.g., usage counters)
+    usage_data = JSONField(blank=True, null=True)
+
+    def __str__(self):
+        return f"{self.character.name} - {self.edge.name} (Rank {self.rank})"
 
 class Skill(models.Model):
     name = models.CharField(max_length=100, unique=True)
@@ -53,7 +86,7 @@ class Character(models.Model):
     # Relationships with other character-creation components.
     background = models.ForeignKey(Background, on_delete=models.SET_NULL,
                                    null=True, blank=True, related_name='characters')
-    archetypes = models.ManyToManyField(Archetype, blank=True, related_name='characters')
+    edge = models.ManyToManyField(Edge, blank=True, related_name='characters')
     skills = models.ManyToManyField(Skill, through='CharacterSkill', blank=True, related_name='characters')
 
     created_at = models.DateTimeField(auto_now_add=True)

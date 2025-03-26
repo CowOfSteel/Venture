@@ -1,0 +1,286 @@
+[
+  {
+    "model": "characters.edge",
+    "pk": 1,
+    "fields": {
+      "name": "Educated",
+      "description": "You may pick a bonus skill of your choice. Whenever you gain skill points from character level advancement, you get a bonus skill point.",
+      "category": "COMMON",
+      "multi_allowed": false,
+      "prerequisites": {},
+      "effect_data": [
+        { "type": "GRANT_SKILL", "skill_name": "ANY", "points": 1 },
+        { "type": "LEVEL_UP_BONUS", "bonus_skill_points": 1 }
+      ],
+      "usage_notes": "",
+      "source": "Cities Without Number"
+    }
+  },
+  {
+    "model": "characters.edge",
+    "pk": 2,
+    "fields": {
+      "name": "Face",
+      "description": "Gain Connect as a bonus skill. Once per game week, you may conjure a temporary Acquaintance Contact of your choice.",
+      "category": "COMMON",
+      "multi_allowed": false,
+      "prerequisites": {},
+      "effect_data": [
+        { "type": "GRANT_SKILL", "skill_name": "Connect", "points": 1 },
+        { "type": "EPHEMERAL_POWER", "name": "temporary_acquaintance", "frequency": "WEEKLY" }
+      ],
+      "usage_notes": "Once per game week, gain a temporary Acquaintance Contact.",
+      "source": "Cities Without Number"
+    }
+  },
+  {
+    "model": "characters.edge",
+    "pk": 3,
+    "fields": {
+      "name": "Focused",
+      "description": "You begin play with an extra Focus pick. This Edge may be chosen more than once.",
+      "category": "COMMON",
+      "multi_allowed": true,
+      "prerequisites": {},
+      "effect_data": [
+        { "type": "GRANT_FOCUS", "count": 1 }
+      ],
+      "usage_notes": "",
+      "source": "Cities Without Number"
+    }
+  },
+  {
+    "model": "characters.edge",
+    "pk": 4,
+    "fields": {
+      "name": "Ghost",
+      "description": "Gain Sneak as a bonus skill, and your Fighting Withdrawal action becomes an On Turn action. Once per scene, reroll a failed Sneak check; once per game day, move up to 10 meters unseen.",
+      "category": "COMMON",
+      "multi_allowed": false,
+      "prerequisites": {},
+      "effect_data": [
+        { "type": "GRANT_SKILL", "skill_name": "Sneak", "points": 1 },
+        { "type": "EPHEMERAL_POWER", "name": "reroll_sneak", "frequency": "SCENE" },
+        { "type": "EPHEMERAL_POWER", "name": "vanish_move", "frequency": "DAILY", "distance": 10 }
+      ],
+      "usage_notes": "Once per scene, reroll a failed Sneak check; once per day, move up to 10m unseen.",
+      "source": "Cities Without Number"
+    }
+  },
+  {
+    "model": "characters.edge",
+    "pk": 5,
+    "fields": {
+      "name": "Hacker",
+      "description": "Gain Program as a bonus skill. Begin play with an installed Cranial Jack and a scrap deck. Each round, gain a bonus Main Action for hacking-related actions.",
+      "category": "COMMON",
+      "multi_allowed": false,
+      "prerequisites": {},
+      "effect_data": [
+        { "type": "GRANT_SKILL", "skill_name": "Program", "points": 1 },
+        { "type": "GRANT_GEAR", "gear": "Cranial Jack", "description": "Installed at start" },
+        { "type": "BONUS_ACTION", "action": "Hacking", "frequency": "ROUND" }
+      ],
+      "usage_notes": "Provides bonus Main Action each round for hacking.",
+      "source": "Cities Without Number"
+    }
+  },
+  {
+    "model": "characters.edge",
+    "pk": 6,
+    "fields": {
+      "name": "Hard To Kill",
+      "description": "Instead of rolling 1d6 per level for your hit points, roll 1d6+2. Your base Trauma Target increases by +1.",
+      "category": "COMMON",
+      "multi_allowed": false,
+      "prerequisites": {},
+      "effect_data": [
+        { "type": "MOD_FORMULA", "target": "hit_dice", "value": "1d6+2" },
+        { "type": "MOD_TRAUMA_TARGET", "amount": 1 }
+      ],
+      "usage_notes": "",
+      "source": "Cities Without Number"
+    }
+  },
+  {
+    "model": "characters.edge",
+    "pk": 7,
+    "fields": {
+      "name": "Killing Blow",
+      "description": "Gain a combat skill as a bonus. Damage increases by 1 point per two levels and any Trauma Die gets a +1 bonus.",
+      "category": "COMMON",
+      "multi_allowed": false,
+      "prerequisites": {},
+      "effect_data": [
+        { "type": "GRANT_SKILL", "skill_name": "ANY_COMBAT", "points": 1 },
+        { "type": "SCALING_BONUS", "bonus": "damage_increase", "per_levels": 2, "increment": 1 },
+        { "type": "SCALING_BONUS", "bonus": "trauma_die", "per_levels": 2, "increment": 1 }
+      ],
+      "usage_notes": "",
+      "source": "Cities Without Number"
+    }
+  },
+  {
+    "model": "characters.edge",
+    "pk": 8,
+    "fields": {
+      "name": "Masterful Expertise",
+      "description": "Once per scene, as an Instant action, reroll a failed check for a non-combat skill.",
+      "category": "COMMON",
+      "multi_allowed": false,
+      "prerequisites": {},
+      "effect_data": [
+        { "type": "EPHEMERAL_POWER", "name": "reroll_noncombat", "frequency": "SCENE" }
+      ],
+      "usage_notes": "",
+      "source": "Cities Without Number"
+    }
+  },
+  {
+    "model": "characters.edge",
+    "pk": 9,
+    "fields": {
+      "name": "On Target",
+      "description": "Gain a combat skill as a bonus. Your basic attack bonus equals your character level instead of half.",
+      "category": "COMMON",
+      "multi_allowed": false,
+      "prerequisites": {},
+      "effect_data": [
+        { "type": "GRANT_SKILL", "skill_name": "ANY_COMBAT", "points": 1 },
+        { "type": "MOD_FORMULA", "target": "attack_bonus", "value": "full_level" }
+      ],
+      "usage_notes": "",
+      "source": "Cities Without Number"
+    }
+  },
+  {
+    "model": "characters.edge",
+    "pk": 10,
+    "fields": {
+      "name": "Prodigy",
+      "description": "Pick an attribute other than Constitution; set it to 18 and grant it a +3 modifier. Cannot be taken if using the Underdog rule.",
+      "category": "COMMON",
+      "multi_allowed": false,
+      "prerequisites": { "no_underdog": true },
+      "effect_data": [
+        { "type": "ATTRIBUTE_SET", "attribute": "ANY_BUT_CON", "value": 18, "modifier": 3 }
+      ],
+      "usage_notes": "",
+      "source": "Cities Without Number"
+    }
+  },
+  {
+    "model": "characters.edge",
+    "pk": 11,
+    "fields": {
+      "name": "Operator’s Fortune",
+      "description": "Once per game session, as an Instant action, roll 1d6. On a 1, nothing changes; on 2-5, you avert a bad event; on 6, it lands on an enemy or rival.",
+      "category": "COMMON",
+      "multi_allowed": false,
+      "prerequisites": {},
+      "effect_data": [
+        { "type": "EPHEMERAL_POWER", "name": "operator_fortune", "frequency": "SESSION" }
+      ],
+      "usage_notes": "",
+      "source": "Cities Without Number"
+    }
+  },
+  {
+    "model": "characters.edge",
+    "pk": 12,
+    "fields": {
+      "name": "Veteran’s Luck",
+      "description": "Once per scene, as an Instant action, convert a hit into a miss or vice versa.",
+      "category": "COMMON",
+      "multi_allowed": false,
+      "prerequisites": {},
+      "effect_data": [
+        { "type": "EPHEMERAL_POWER", "name": "veterans_luck", "frequency": "SCENE" }
+      ],
+      "usage_notes": "",
+      "source": "Cities Without Number"
+    }
+  },
+  {
+    "model": "characters.edge",
+    "pk": 13,
+    "fields": {
+      "name": "Voice of the People",
+      "description": "Gain both levels of the Pop Idol Focus and an additional Friend Contact related to your art.",
+      "category": "COMMON",
+      "multi_allowed": false,
+      "prerequisites": {},
+      "effect_data": [
+        { "type": "GRANT_FOCUS", "focus_name": "Pop Idol", "levels": 2 },
+        { "type": "GRANT_CONTACT", "relationship": "friend", "count": 1 }
+      ],
+      "usage_notes": "",
+      "source": "Cities Without Number"
+    }
+  },
+  {
+    "model": "characters.edge",
+    "pk": 14,
+    "fields": {
+      "name": "Wired",
+      "description": "Begin play with up to $200,000 worth of cyber. No installation cost; maintenance is covered for two months. Redeemable later for a trade-in.",
+      "category": "COMMON",
+      "multi_allowed": false,
+      "prerequisites": {},
+      "effect_data": [
+        { "type": "GRANT_CYBER_FUNDS", "amount": 200000 },
+        { "type": "FREE_MAINTENANCE", "duration": "2_months" }
+      ],
+      "usage_notes": "",
+      "source": "Cities Without Number"
+    }
+  },
+  {
+    "model": "characters.edge",
+    "pk": 15,
+    "fields": {
+      "name": "Graced",
+      "description": "You have innate magical abilities that enhance your physical or mental prowess. Gain the Graced powers and hindrances as described in section 6.3.0.",
+      "category": "MAGICAL",
+      "multi_allowed": false,
+      "prerequisites": {},
+      "effect_data": [
+        { "type": "GRANT_MAGICAL", "subtype": "graced" }
+      ],
+      "usage_notes": "",
+      "source": "Cities Without Number"
+    }
+  },
+  {
+    "model": "characters.edge",
+    "pk": 16,
+    "fields": {
+      "name": "Spellcaster",
+      "description": "You are a mage, capable of casting spells as described in section 6.1.0 and subject to a mage's limits in using cyberware.",
+      "category": "MAGICAL",
+      "multi_allowed": false,
+      "prerequisites": {},
+      "effect_data": [
+        { "type": "GRANT_MAGICAL", "subtype": "spellcaster" }
+      ],
+      "usage_notes": "",
+      "source": "Cities Without Number"
+    }
+  },
+  {
+    "model": "characters.edge",
+    "pk": 17,
+    "fields": {
+      "name": "Summoner",
+      "description": "You are a summoner, capable of calling spirit servants as described in section 6.2.0, though you also face limits in using cyberware.",
+      "category": "MAGICAL",
+      "multi_allowed": false,
+      "prerequisites": {},
+      "effect_data": [
+        { "type": "GRANT_MAGICAL", "subtype": "summoner" }
+      ],
+      "usage_notes": "",
+      "source": "Cities Without Number"
+    }
+  }
+]
