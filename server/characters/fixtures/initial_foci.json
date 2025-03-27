@@ -1,0 +1,1210 @@
+[
+  {
+    "model": "characters.focus",
+    "pk": 1,
+    "fields": {
+      "name": "Ace Driver",
+      "description": "If it’s got wheels or wings, you can drive it with uncanny aptitude.",
+      "version": "1.0.0",
+      "category": "COMMON",
+      "source": "Cities Without Number",
+      "max_level": 2,
+      "multi_allowed": false,
+      "prerequisites": {},
+      "usage_notes": "Applies only to vehicles, not drones. The gear budget increases by character level (see section 1.6.2).",
+      "levels": [
+        {
+          "level": 1,
+          "summary": "Level 1: Gain Drive as a bonus skill. Once per scene, reroll a failed driving or vehicle repair check. You have a vehicle gear budget and can replace lost/destroyed vehicles at a set rate.",
+          "effect_data": [
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "Drive",
+              "points": 1
+            },
+            {
+              "type": "EPHEMERAL_POWER",
+              "name": "reroll_driving_check",
+              "frequency": "SCENE",
+              "description": "Reroll one failed driving or related check per scene."
+            },
+            {
+              "type": "FOCUS_BUDGET",
+              "category": "vehicle",
+              "base_amount": 5000,
+              "description": "Vehicle gear budget at level 1."
+            }
+          ]
+        },
+        {
+          "level": 2,
+          "summary": "Level 2: Gain Fix as a bonus skill. Increase your driven vehicle’s Speed by 1. Once per vehicle, add a free mod that only you can use and doesn’t require maintenance.",
+          "effect_data": [
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "Fix",
+              "points": 1
+            },
+            {
+              "type": "MISC_BONUS",
+              "target": "vehicle_speed",
+              "amount": 1
+            },
+            {
+              "type": "FREE_VEHICLE_MOD",
+              "description": "Install one free mod in a vehicle you drive. Requires no Maintenance."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "model": "characters.focus",
+    "pk": 2,
+    "fields": {
+      "name": "Alert",
+      "description": "Keenly aware of your surroundings, you’re almost impossible to ambush.",
+      "version": "1.0.0",
+      "category": "COMMON",
+      "source": "Cities Without Number",
+      "max_level": 2,
+      "multi_allowed": false,
+      "prerequisites": {},
+      "usage_notes": "Helps avoid surprise and initiative disadvantages.",
+      "levels": [
+        {
+          "level": 1,
+          "summary": "Level 1: Gain Notice as a bonus skill. You cannot be surprised, nor be targeted by Execution Attacks from stealth. Your party rolls initiative twice and takes the better result.",
+          "effect_data": [
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "Notice",
+              "points": 1
+            },
+            {
+              "type": "MISC_BONUS",
+              "target": "no_surprise",
+              "amount": 1
+            },
+            {
+              "type": "INITIATIVE_BONUS",
+              "description": "Roll initiative twice for the entire group, pick best."
+            }
+          ]
+        },
+        {
+          "level": 2,
+          "summary": "Level 2: Always act first each round unless someone else is also Alert at level 2.",
+          "effect_data": [
+            {
+              "type": "INITIATIVE_BONUS",
+              "description": "Act first in combat each round."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "model": "characters.focus",
+    "pk": 3,
+    "fields": {
+      "name": "All Natural",
+      "description": "Your physical and mental brilliance rejects most cyber augmentation.",
+      "version": "1.0.0",
+      "category": "COMMON",
+      "source": "Cities Without Number",
+      "max_level": 1,
+      "multi_allowed": false,
+      "prerequisites": {
+        "no_cyberware": true
+      },
+      "usage_notes": "Cannot safely receive implants except trivial cosmetic ones.",
+      "levels": [
+        {
+          "level": 1,
+          "summary": "Gain any skill as a bonus skill. Increase one attribute’s modifier by +1 (max +3). At certain levels, can pick again. You can still suffer Traumatic Hits, but never suffer Major Injuries.",
+          "effect_data": [
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "ANY",
+              "points": 1
+            },
+            {
+              "type": "ATTRIBUTE_MOD",
+              "attribute": "ANY_ONE",
+              "amount": 1,
+              "max_modifier": 3
+            },
+            {
+              "type": "NO_MAJOR_INJURIES",
+              "description": "You never suffer Major Injuries from Traumatic Hits."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "model": "characters.focus",
+    "pk": 4,
+    "fields": {
+      "name": "Armsmaster",
+      "description": "You excel at melee or thrown-weapon combat (not unarmed).",
+      "version": "1.0.0",
+      "category": "COMMON",
+      "source": "Cities Without Number",
+      "max_level": 2,
+      "multi_allowed": false,
+      "prerequisites": {},
+      "usage_notes": "Doesn’t stack with Deadeye or other skill-level-to-damage Foci.",
+      "levels": [
+        {
+          "level": 1,
+          "summary": "Level 1: Gain Stab as a bonus skill. Ready a stowed melee/thrown weapon as an Instant action. Add your Stab skill level to damage or Shock when using melee/thrown weapons.",
+          "effect_data": [
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "Stab",
+              "points": 1
+            },
+            {
+              "type": "MISC_BONUS",
+              "target": "stab_skill_damage",
+              "amount": 1
+            }
+          ]
+        },
+        {
+          "level": 2,
+          "summary": "Level 2: Your melee Shock always applies as if target AC were 10. +1 to hit with all thrown or melee attacks.",
+          "effect_data": [
+            {
+              "type": "SHOCK_AC_BYPASS",
+              "value": 10
+            },
+            {
+              "type": "MISC_BONUS",
+              "target": "hit_roll",
+              "amount": 1,
+              "description": "Applies only to thrown or melee attacks."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "model": "characters.focus",
+    "pk": 5,
+    "fields": {
+      "name": "Assassin",
+      "description": "You’re skilled at sudden murder and Execution Attacks.",
+      "version": "1.0.0",
+      "category": "COMMON",
+      "source": "Cities Without Number",
+      "max_level": 2,
+      "multi_allowed": false,
+      "prerequisites": {},
+      "usage_notes": "",
+      "levels": [
+        {
+          "level": 1,
+          "summary": "Level 1: Gain Sneak. You can conceal a pistol/knife from basic scans. At point-blank from surprise, you cannot miss with that weapon.",
+          "effect_data": [
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "Sneak",
+              "points": 1
+            },
+            {
+              "type": "CONCEAL_WEAPON",
+              "size": "pistol_or_knife"
+            },
+            {
+              "type": "AUTO_HIT_FROM_SURPRISE",
+              "range": "point_blank"
+            }
+          ]
+        },
+        {
+          "level": 2,
+          "summary": "Level 2: You can still Move before or after your Execution Attack, splitting the move around the kill. Movement is too quick to alert your victim.",
+          "effect_data": [
+            {
+              "type": "EXECUTION_MOVE",
+              "description": "Move action can be split around your Execution Attack."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "model": "characters.focus",
+    "pk": 6,
+    "fields": {
+      "name": "Authority",
+      "description": "Your force of personality compels others to follow you.",
+      "version": "1.0.0",
+      "category": "COMMON",
+      "source": "Cities Without Number",
+      "max_level": 2,
+      "multi_allowed": false,
+      "prerequisites": {},
+      "usage_notes": "Limited to NPC loyalty; does not affect PCs directly.",
+      "levels": [
+        {
+          "level": 1,
+          "summary": "Level 1: Gain Lead. Once per day, you can force a non-hostile NPC to comply with a request that isn’t obviously harmful.",
+          "effect_data": [
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "Lead",
+              "points": 1
+            },
+            {
+              "type": "EPHEMERAL_POWER",
+              "name": "request_compliance",
+              "frequency": "DAILY"
+            }
+          ]
+        },
+        {
+          "level": 2,
+          "summary": "Level 2: Those you lead gain a bonus to Morale, attack rolls, and +1 to all skill checks equal to your Lead skill. They won’t betray you unless forced.",
+          "effect_data": [
+            {
+              "type": "MORALE_BONUS",
+              "value": "lead_skill"
+            },
+            {
+              "type": "HIT_BONUS",
+              "value": "lead_skill"
+            },
+            {
+              "type": "SKILL_BONUS",
+              "value": 1
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "model": "characters.focus",
+    "pk": 7,
+    "fields": {
+      "name": "Close Combatant",
+      "description": "You excel at close-range gunplay and avoiding melee Shock.",
+      "version": "1.0.0",
+      "category": "COMMON",
+      "source": "Cities Without Number",
+      "max_level": 2,
+      "multi_allowed": false,
+      "prerequisites": {},
+      "usage_notes": "Lets you shoot pistol-sized weapons in melee without penalty and avoid Shock.",
+      "levels": [
+        {
+          "level": 1,
+          "summary": "Level 1: Gain any combat skill. You can use a pistol in melee without a -4. Ignore Shock from melee attacks, even unarmored.",
+          "effect_data": [
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "ANY_COMBAT",
+              "points": 1
+            },
+            {
+              "type": "IGNORE_MELEE_SHOCK",
+              "description": "You do not suffer Shock damage in melee."
+            }
+          ]
+        },
+        {
+          "level": 2,
+          "summary": "Level 2: Your melee Shock always treats targets as if AC 10. Fighting Withdrawal is an On Turn action (no Main Action).",
+          "effect_data": [
+            {
+              "type": "SHOCK_AC_BYPASS",
+              "value": 10
+            },
+            {
+              "type": "FIGHTING_WITHDRAWAL_UPGRADE"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "model": "characters.focus",
+    "pk": 8,
+    "fields": {
+      "name": "Cyberdoc",
+      "description": "You’re specially gifted at implanting and maintaining cyberware.",
+      "version": "1.0.0",
+      "category": "COMMON",
+      "source": "Cities Without Number",
+      "max_level": 2,
+      "multi_allowed": false,
+      "prerequisites": {},
+      "usage_notes": "",
+      "levels": [
+        {
+          "level": 1,
+          "summary": "Level 1: Gain Fix and Heal. Start with a cyberdoc kit. +2 on surgery checks. Performing maintenance on someone reduces their total System Strain by 1.",
+          "effect_data": [
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "Fix",
+              "points": 1
+            },
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "Heal",
+              "points": 1
+            },
+            {
+              "type": "GRANT_GEAR",
+              "gear": "cyberdoc_kit",
+              "description": "Basic medical kit for implants."
+            },
+            {
+              "type": "SURGERY_BONUS",
+              "amount": 2
+            },
+            {
+              "type": "SYSTEM_STRAIN_REDUCE",
+              "amount": 1
+            }
+          ]
+        },
+        {
+          "level": 2,
+          "summary": "Level 2: Maintenance reduces System Strain by 2. You never fail to install cyber. Once per patient, build/install a cyber mod at no cost.",
+          "effect_data": [
+            {
+              "type": "SYSTEM_STRAIN_REDUCE",
+              "amount": 2
+            },
+            {
+              "type": "NO_IMPLANT_FAILURE"
+            },
+            {
+              "type": "FREE_CYBER_MOD"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "model": "characters.focus",
+    "pk": 9,
+    "fields": {
+      "name": "Deadeye",
+      "description": "You’re a crack shot with ranged weapons, including thrown.",
+      "version": "1.0.0",
+      "category": "COMMON",
+      "source": "Cities Without Number",
+      "max_level": 2,
+      "multi_allowed": false,
+      "prerequisites": {},
+      "usage_notes": "Doesn’t stack with Armsmaster if you’re throwing weapons.",
+      "levels": [
+        {
+          "level": 1,
+          "summary": "Level 1: Gain Shoot. Ready a stowed ranged weapon as an Instant action. Add your Shoot skill level to its damage.",
+          "effect_data": [
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "Shoot",
+              "points": 1
+            },
+            {
+              "type": "MISC_BONUS",
+              "target": "shoot_skill_damage",
+              "amount": 1
+            }
+          ]
+        },
+        {
+          "level": 2,
+          "summary": "Level 2: Reload guns or crossbows as an On Turn action if it normally takes a round. You can use two-handed ranged weapons in melee. Once per scene, automatically hit an inanimate target (unless physically impossible).",
+          "effect_data": [
+            {
+              "type": "FAST_RELOAD"
+            },
+            {
+              "type": "RANGED_IN_MELEE_OK"
+            },
+            {
+              "type": "EPHEMERAL_POWER",
+              "name": "auto_hit_inanimate",
+              "frequency": "SCENE"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "model": "characters.focus",
+    "pk": 10,
+    "fields": {
+      "name": "Diplomat",
+      "description": "You know how to get your way in personal negotiations.",
+      "version": "1.0.0",
+      "category": "COMMON",
+      "source": "Cities Without Number",
+      "max_level": 2,
+      "multi_allowed": false,
+      "prerequisites": {},
+      "usage_notes": "Only works if the other party is actually willing to listen.",
+      "levels": [
+        {
+          "level": 1,
+          "summary": "Level 1: Gain Talk. You speak all common local languages. Reroll 1s on negotiation or diplomacy checks.",
+          "effect_data": [
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "Talk",
+              "points": 1
+            },
+            {
+              "type": "LANGUAGE_BONUS",
+              "description": "Speak the city’s common tongues."
+            },
+            {
+              "type": "REROLL_ONES",
+              "skill_categories": ["negotiation"]
+            }
+          ]
+        },
+        {
+          "level": 2,
+          "summary": "Level 2: Once per game session, shift an intelligent NPC’s reaction one step friendlier if you can talk to them for at least 30 seconds.",
+          "effect_data": [
+            {
+              "type": "EPHEMERAL_POWER",
+              "name": "shift_reaction_friendlier",
+              "frequency": "SESSION"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "model": "characters.focus",
+    "pk": 11,
+    "fields": {
+      "name": "Drone Pilot",
+      "description": "You have a special knack for drone operation and maintenance.",
+      "version": "1.0.0",
+      "category": "COMMON",
+      "source": "Cities Without Number",
+      "max_level": 2,
+      "multi_allowed": false,
+      "prerequisites": {},
+      "usage_notes": "Grants a separate drone gear budget. You can replicate destroyed drones weekly.",
+      "levels": [
+        {
+          "level": 1,
+          "summary": "Level 1: Gain Drive and Fix. You start with a Remote Control Unit cyber plus a drone budget. You can fix or rebuild your drones quickly.",
+          "effect_data": [
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "Drive",
+              "points": 1
+            },
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "Fix",
+              "points": 1
+            },
+            {
+              "type": "GRANT_GEAR",
+              "gear": "Remote_Control_Unit_Cyber",
+              "description": "Installed at start."
+            },
+            {
+              "type": "FOCUS_BUDGET",
+              "category": "drone",
+              "base_amount": 1000,
+              "description": "Drone gear budget at level 1."
+            }
+          ]
+        },
+        {
+          "level": 2,
+          "summary": "Level 2: Once per scene, gain a bonus Main Action to command a drone. Your drones gain +2 to hit rolls while you command them.",
+          "effect_data": [
+            {
+              "type": "EPHEMERAL_POWER",
+              "name": "bonus_drone_action",
+              "frequency": "SCENE"
+            },
+            {
+              "type": "MISC_BONUS",
+              "target": "drone_hit_roll",
+              "amount": 2
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "model": "characters.focus",
+    "pk": 12,
+    "fields": {
+      "name": "Expert Programmer",
+      "description": "You go beyond mere hacking, shaping code like clay in your hands.",
+      "version": "1.0.0",
+      "category": "COMMON",
+      "source": "Cities Without Number",
+      "max_level": 2,
+      "multi_allowed": false,
+      "prerequisites": {},
+      "usage_notes": "Interacts with cyberspace program writing and memory usage.",
+      "levels": [
+        {
+          "level": 1,
+          "summary": "Level 1: Gain Program. You can maintain extra program elements (char level +2). Once per day, on-the-fly reassign one Subject element to another.",
+          "effect_data": [
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "Program",
+              "points": 1
+            },
+            {
+              "type": "PROGRAM_CAPACITY",
+              "extra": 2
+            },
+            {
+              "type": "EPHEMERAL_POWER",
+              "name": "change_subject_element",
+              "frequency": "DAILY"
+            }
+          ]
+        },
+        {
+          "level": 2,
+          "summary": "Level 2: Your program elements take half Memory. A cyberdeck you use gains a CPU bonus equal to your Program skill.",
+          "effect_data": [
+            {
+              "type": "HALF_MEMORY_USAGE"
+            },
+            {
+              "type": "CYBERDECK_CPU_BONUS",
+              "formula": "program_skill"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "model": "characters.focus",
+    "pk": 13,
+    "fields": {
+      "name": "Healer",
+      "description": "Your healing talents border on miraculous.",
+      "version": "1.0.0",
+      "category": "COMMON",
+      "source": "Cities Without Number",
+      "max_level": 2,
+      "multi_allowed": false,
+      "prerequisites": {},
+      "usage_notes": "",
+      "levels": [
+        {
+          "level": 1,
+          "summary": "Level 1: Gain Heal. You can stabilize one Mortally Wounded ally per round as an On Turn action. Roll 3d6 drop lowest on Heal checks.",
+          "effect_data": [
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "Heal",
+              "points": 1
+            },
+            {
+              "type": "FASTER_STABILIZE",
+              "description": "Can stabilize mortally-wounded ally as On Turn action."
+            },
+            {
+              "type": "SKILL_ROLL_BONUS",
+              "method": "3d6_drop_lowest",
+              "skill_name": "Heal"
+            }
+          ]
+        },
+        {
+          "level": 2,
+          "summary": "Level 2: Double healing from medtech or drugs you apply. Once per day, you can provide 1d6+Heal HP to every injured ally with 10 minutes of first aid, with no System Strain cost.",
+          "effect_data": [
+            {
+              "type": "DOUBLE_MEDTECH_HEAL"
+            },
+            {
+              "type": "EPHEMERAL_POWER",
+              "name": "mass_first_aid",
+              "frequency": "DAILY"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "model": "characters.focus",
+    "pk": 14,
+    "fields": {
+      "name": "Henchkeeper",
+      "description": "You pick up loyal (if not bright) followers wherever you go.",
+      "version": "1.0.0",
+      "category": "COMMON",
+      "source": "Cities Without Number",
+      "max_level": 2,
+      "multi_allowed": false,
+      "prerequisites": {},
+      "usage_notes": "",
+      "levels": [
+        {
+          "level": 1,
+          "summary": "Level 1: Gain Lead. You can recruit normal henchmen quickly in any new locale. They won’t fight except in self-defense. You can have 1 henchman per 3 character levels.",
+          "effect_data": [
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "Lead",
+              "points": 1
+            },
+            {
+              "type": "HENCHMEN_RECRUIT",
+              "max_count_formula": "ceil(level/3)"
+            }
+          ]
+        },
+        {
+          "level": 2,
+          "summary": "Level 2: Your henchmen are loyal and will fight except vs. overwhelming odds. They act as Basic Corp Security if pressed into combat. Skilled NPCs can be recruited if you’ve earned their devotion.",
+          "effect_data": [
+            {
+              "type": "UPGRADE_HENCHMEN",
+              "description": "They fight at Basic Corp Security competence."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "model": "characters.focus",
+    "pk": 15,
+    "fields": {
+      "name": "Many Faces",
+      "description": "You maintain multiple deep-cover identities in corporate databases.",
+      "version": "1.0.0",
+      "category": "COMMON",
+      "source": "Cities Without Number",
+      "max_level": 1,
+      "multi_allowed": false,
+      "prerequisites": {},
+      "usage_notes": "Allows easy replacement of identities if compromised.",
+      "levels": [
+        {
+          "level": 1,
+          "summary": "Gain Sneak. You can maintain one false identity per 3 character levels. These identities are fully authenticated in corp systems. Changing an identity takes a week of downtime.",
+          "effect_data": [
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "Sneak",
+              "points": 1
+            },
+            {
+              "type": "MULTI_IDENTITY",
+              "formula": "ceil(level/3)"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "model": "characters.focus",
+    "pk": 16,
+    "fields": {
+      "name": "Pop Idol",
+      "description": "You have a devoted fan base ready to do your bidding.",
+      "version": "1.0.0",
+      "category": "COMMON",
+      "source": "Cities Without Number",
+      "max_level": 2,
+      "multi_allowed": false,
+      "prerequisites": {},
+      "usage_notes": "",
+      "levels": [
+        {
+          "level": 1,
+          "summary": "Level 1: Gain Perform. Once per game week, mobilize ~100 fans for mild tasks or earn $1k/level from donations or merch sales.",
+          "effect_data": [
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "Perform",
+              "points": 1
+            },
+            {
+              "type": "EPHEMERAL_POWER",
+              "name": "fan_mobilization",
+              "frequency": "WEEKLY"
+            }
+          ]
+        },
+        {
+          "level": 2,
+          "summary": "Level 2: You can rally up to 100 fans per character level. You can hide your involvement through local fan leaders. Donations double. Your Charisma modifier is +1 (max +2).",
+          "effect_data": [
+            {
+              "type": "FAN_MOB_UPGRADE",
+              "description": "Up to 100 fans x level. Donations/merch double."
+            },
+            {
+              "type": "ATTRIBUTE_MOD",
+              "attribute": "CHA",
+              "amount": 1,
+              "max_modifier": 2
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "model": "characters.focus",
+    "pk": 17,
+    "fields": {
+      "name": "Roamer",
+      "description": "You’ve traveled widely on foot or by stowing away on transport.",
+      "version": "1.0.0",
+      "category": "COMMON",
+      "source": "Cities Without Number",
+      "max_level": 2,
+      "multi_allowed": false,
+      "prerequisites": {},
+      "usage_notes": "Similar to Ace Driver but more general. Also grants vehicle budget.",
+      "levels": [
+        {
+          "level": 1,
+          "summary": "Level 1: Gain Survive and Drive. You speak all common local languages. Never get lost. Acquire vehicles worth up to $5k, replace at $10k/week if lost.",
+          "effect_data": [
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "Survive",
+              "points": 1
+            },
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "Drive",
+              "points": 1
+            },
+            {
+              "type": "NO_GET_LOST"
+            },
+            {
+              "type": "FOCUS_BUDGET",
+              "category": "vehicle",
+              "base_amount": 5000,
+              "description": "Vehicle gear budget at level 1."
+            }
+          ]
+        },
+        {
+          "level": 2,
+          "summary": "Level 2: Once per scene, reroll a failed travel-related skill check (driving, navigating, negotiating passage).",
+          "effect_data": [
+            {
+              "type": "EPHEMERAL_POWER",
+              "name": "reroll_travel_check",
+              "frequency": "SCENE"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "model": "characters.focus",
+    "pk": 18,
+    "fields": {
+      "name": "Safe Haven",
+      "description": "You have a knack for finding or establishing hidden safehouses.",
+      "version": "1.0.0",
+      "category": "COMMON",
+      "source": "Cities Without Number",
+      "max_level": 2,
+      "multi_allowed": false,
+      "prerequisites": {},
+      "usage_notes": "",
+      "levels": [
+        {
+          "level": 1,
+          "summary": "Level 1: Gain Sneak. You can arrange a secure safehouse in a neighborhood after a week. It’s invisible to pursuit unless you blow its cover.",
+          "effect_data": [
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "Sneak",
+              "points": 1
+            },
+            {
+              "type": "SAFEHOUSE_SETUP"
+            }
+          ]
+        },
+        {
+          "level": 2,
+          "summary": "Level 2: Safehouses come with local defenders (gang, complicit cops, etc.) who’ll protect you from most threats. You can gear them with a tech workshop or level-1 cyberclinic.",
+          "effect_data": [
+            {
+              "type": "UPGRADE_SAFEHOUSE_DEFENSE"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "model": "characters.focus",
+    "pk": 19,
+    "fields": {
+      "name": "Shocking Assault",
+      "description": "Your melee strikes create unstoppable waves of harm around you.",
+      "version": "1.0.0",
+      "category": "COMMON",
+      "source": "Cities Without Number",
+      "max_level": 2,
+      "multi_allowed": false,
+      "prerequisites": {},
+      "usage_notes": "Boosts your Shock damage with melee weapons.",
+      "levels": [
+        {
+          "level": 1,
+          "summary": "Level 1: Gain Punch or Stab. Your melee Shock applies vs. AC 10 (assuming the target is not immune).",
+          "effect_data": [
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "Punch_or_Stab",
+              "points": 1
+            },
+            {
+              "type": "SHOCK_AC_BYPASS",
+              "value": 10
+            }
+          ]
+        },
+        {
+          "level": 2,
+          "summary": "Level 2: Your melee (or unarmed) attacks gain +2 Shock. A successful hit never does less than that Shock value.",
+          "effect_data": [
+            {
+              "type": "SHOCK_BONUS",
+              "amount": 2
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "model": "characters.focus",
+    "pk": 20,
+    "fields": {
+      "name": "Sniper’s Eye",
+      "description": "You excel at ranged Execution Attacks.",
+      "version": "1.0.0",
+      "category": "COMMON",
+      "source": "Cities Without Number",
+      "max_level": 2,
+      "multi_allowed": false,
+      "prerequisites": {},
+      "usage_notes": "Applies specifically to Execution Attacks with guns, bows, or thrown weapons.",
+      "levels": [
+        {
+          "level": 1,
+          "summary": "Level 1: Gain Shoot. When making an Execution Attack or target shooting, roll 3d6 drop the lowest die.",
+          "effect_data": [
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "Shoot",
+              "points": 1
+            },
+            {
+              "type": "SKILL_ROLL_BONUS",
+              "method": "3d6_drop_lowest",
+              "applies_to": "execution_attack"
+            }
+          ]
+        },
+        {
+          "level": 2,
+          "summary": "Level 2: You do not miss with ranged Execution Attacks. The target takes a -4 penalty to their Physical save or suffers doubled damage if they pass anyway.",
+          "effect_data": [
+            {
+              "type": "NO_MISS_EXECUTION"
+            },
+            {
+              "type": "SAVE_PENALTY",
+              "amount": -4,
+              "save_type": "physical"
+            },
+            {
+              "type": "DAMAGE_MULTIPLIER",
+              "value": 2,
+              "condition": "execution_save_success"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "model": "characters.focus",
+    "pk": 21,
+    "fields": {
+      "name": "Specialist",
+      "description": "You are remarkably talented at one particular non-combat skill.",
+      "version": "1.0.0",
+      "category": "COMMON",
+      "source": "Cities Without Number",
+      "max_level": 2,
+      "multi_allowed": true,
+      "prerequisites": {},
+      "usage_notes": "If taken multiple times, each instance must apply to a different skill.",
+      "levels": [
+        {
+          "level": 1,
+          "summary": "Level 1: Pick a non-combat skill, gain it at level-0 if you don’t have it, or raise it by 1 if you do (up to 1). You roll 3d6 drop lowest for checks.",
+          "effect_data": [
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "ANY_NONCOMBAT",
+              "points": 1
+            },
+            {
+              "type": "SKILL_ROLL_BONUS",
+              "method": "3d6_drop_lowest"
+            }
+          ]
+        },
+        {
+          "level": 2,
+          "summary": "Level 2: You roll 4d6 drop the two lowest on checks with that skill. (Skill level can be 1 now, but not more than 1 at creation.)",
+          "effect_data": [
+            {
+              "type": "SKILL_ROLL_BONUS",
+              "method": "4d6_drop_two_lowest"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "model": "characters.focus",
+    "pk": 22,
+    "fields": {
+      "name": "Tinker",
+      "description": "You’re adept at building and modifying gear or cyberware.",
+      "version": "1.0.0",
+      "category": "COMMON",
+      "source": "Cities Without Number",
+      "max_level": 2,
+      "multi_allowed": false,
+      "prerequisites": {},
+      "usage_notes": "",
+      "levels": [
+        {
+          "level": 1,
+          "summary": "Level 1: Gain Fix. Your Maintenance score is doubled, and normal mod costs in $ are halved (special components still needed).",
+          "effect_data": [
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "Fix",
+              "points": 1
+            },
+            {
+              "type": "MAINTENANCE_SCORE_MULT",
+              "amount": 2
+            },
+            {
+              "type": "MOD_COST_REDUCTION",
+              "percentage": 50
+            }
+          ]
+        },
+        {
+          "level": 2,
+          "summary": "Level 2: Your Fix is treated 1 level higher for mod building/maintenance (max Fix-5). Advanced mods require one fewer special component (min zero).",
+          "effect_data": [
+            {
+              "type": "FIX_SKILL_BOOST",
+              "amount": 1,
+              "max_effective_skill": 5
+            },
+            {
+              "type": "MOD_COMPONENT_REDUCTION",
+              "amount": 1
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "model": "characters.focus",
+    "pk": 23,
+    "fields": {
+      "name": "Unarmed Combatant",
+      "description": "Your empty hands are lethal weapons.",
+      "version": "1.0.0",
+      "category": "COMMON",
+      "source": "Cities Without Number",
+      "max_level": 2,
+      "multi_allowed": false,
+      "prerequisites": {},
+      "usage_notes": "",
+      "levels": [
+        {
+          "level": 1,
+          "summary": "Level 1: Gain Punch. Your unarmed damage scales with Punch skill, and can do lethal damage with a 1d6 x2 Trauma. If Punch≥1, you get Shock vs. AC15.",
+          "effect_data": [
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "Punch",
+              "points": 1
+            },
+            {
+              "type": "SCALE_UNARMED_DAMAGE",
+              "formula": "punch_skill_progression"
+            },
+            {
+              "type": "UNARMED_TRAUMA",
+              "die": "1d6",
+              "rating": 2
+            }
+          ]
+        },
+        {
+          "level": 2,
+          "summary": "Level 2: Even on a miss, you deal 1d6 damage plus any Shock. Your lethal Trauma Die becomes 1d8.",
+          "effect_data": [
+            {
+              "type": "MISS_DAMAGE",
+              "amount": "1d6"
+            },
+            {
+              "type": "UNARMED_TRAUMA",
+              "die": "1d8",
+              "rating": 2
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "model": "characters.focus",
+    "pk": 24,
+    "fields": {
+      "name": "Unique Gift",
+      "description": "A singular cyber system or innate ability that no normal gear can match.",
+      "version": "1.0.0",
+      "category": "COMMON",
+      "source": "Cities Without Number",
+      "max_level": 1,
+      "multi_allowed": false,
+      "prerequisites": {},
+      "usage_notes": "Represents a special trait or item. Must be GM-approved. Shouldn’t be a trivial bonus.",
+      "levels": [
+        {
+          "level": 1,
+          "summary": "Pick a unique advantage that cannot be replicated by normal equipment. The GM decides if it’s balanced or requires System Strain.",
+          "effect_data": [
+            {
+              "type": "CUSTOM_POWER",
+              "description": "Player and GM define the specifics of this singular ability."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "model": "characters.focus",
+    "pk": 25,
+    "fields": {
+      "name": "Unregistered",
+      "description": "You simply do not exist in government or corporate records.",
+      "version": "1.0.0",
+      "category": "COMMON",
+      "source": "Cities Without Number",
+      "max_level": 1,
+      "multi_allowed": false,
+      "prerequisites": {},
+      "usage_notes": "Difficult to own formal property or bank accounts, but you vanish from digital records.",
+      "levels": [
+        {
+          "level": 1,
+          "summary": "No official records link to you. Computer systems can’t reliably keep track. You can’t maintain a normal bank account or ID.",
+          "effect_data": [
+            {
+              "type": "NO_CORP_RECORDS"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "model": "characters.focus",
+    "pk": 26,
+    "fields": {
+      "name": "Whirlwind Assault",
+      "description": "A dervish of deadly melee fury, hacking through groups of foes.",
+      "version": "1.0.0",
+      "category": "COMMON",
+      "source": "Cities Without Number",
+      "max_level": 2,
+      "multi_allowed": false,
+      "prerequisites": {},
+      "usage_notes": "",
+      "levels": [
+        {
+          "level": 1,
+          "summary": "Level 1: Gain Stab or Punch. Once per scene, as an On Turn action, apply your Shock damage to all foes in melee range.",
+          "effect_data": [
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "Punch_or_Stab",
+              "points": 1
+            },
+            {
+              "type": "EPHEMERAL_POWER",
+              "name": "shock_aoe",
+              "frequency": "SCENE"
+            }
+          ]
+        },
+        {
+          "level": 2,
+          "summary": "Level 2: If you kill someone with a normal melee attack, you instantly gain a second attack in that round.",
+          "effect_data": [
+            {
+              "type": "BONUS_ATTACK_ON_KILL"
+            }
+          ]
+        }
+      ]
+    }
+  }
+]

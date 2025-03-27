@@ -51,15 +51,14 @@ class Edge(models.Model):
 class CharacterEdge(models.Model):
     character = models.ForeignKey('Character', on_delete=models.CASCADE, related_name='character_edges')
     edge = models.ForeignKey(Edge, on_delete=models.CASCADE, related_name='character_edges')
-
     # Track if an edge is taken more than once (e.g., Focused)
     rank = models.PositiveSmallIntegerField(default=1)
-
     # For future ephemeral usage tracking (e.g., usage counters)
     usage_data = JSONField(blank=True, null=True)
 
     def __str__(self):
         return f"{self.character.name} - {self.edge.name} (Rank {self.rank})"
+
 
 class Skill(models.Model):
     name = models.CharField(max_length=100, unique=True)
@@ -69,6 +68,7 @@ class Skill(models.Model):
 
     def __str__(self):
         return self.name
+
 
 class Character(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='characters')
@@ -93,6 +93,7 @@ class Character(models.Model):
                                    null=True, blank=True, related_name='characters')
     edge = models.ManyToManyField(Edge, blank=True, related_name='characters')
     skills = models.ManyToManyField(Skill, through='CharacterSkill', blank=True, related_name='characters')
+    focus = models.ManyToManyField("Focus", through="CharacterFocus", blank=True, related_name="characters")
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -102,6 +103,7 @@ class Character(models.Model):
 
     def contact_list(self):
         return self.contacts.all()
+
 
 class CharacterSkill(models.Model):
     character = models.ForeignKey(Character, on_delete=models.CASCADE)
@@ -120,28 +122,25 @@ class CharacterSkill(models.Model):
 
     @property
     def effective_modifier(self):
-        # If a CharacterSkill record exists, its effective modifier is simply the stored level.
         return self.level
+
 
 class Modifier(models.Model):
     MODIFIER_TYPE_CHOICES = [
         ('ATTRIBUTE', 'Attribute'),
         ('SKILL', 'Skill'),
     ]
-    # Indicates the source of the modifier (e.g., 'Background', 'Edge', 'Focus')
     source = models.CharField(max_length=50)
-    # ID of the source record (for traceability)
     source_id = models.IntegerField()
     modifier_type = models.CharField(max_length=20, choices=MODIFIER_TYPE_CHOICES)
-    # For ATTRIBUTE type, you can indicate the category (e.g., "PHYSICAL", "MENTAL", or "ANY")
     category = models.CharField(max_length=20, blank=True, null=True)
-    # For SKILL type, the specific skill name if applicable (e.g., "Punch", "Shoot")
     skill_name = models.CharField(max_length=50, blank=True, null=True)
-    # How many points to add (usually 1 or 2)
     points = models.IntegerField(default=0)
 
     def __str__(self):
         return f"{self.source} (ID: {self.source_id}) - {self.modifier_type}: {self.points}"
+
+
 class Contact(models.Model):
     RELATIONSHIP_CHOICES = [
         ('acquaintance', 'Acquaintance'),
@@ -150,7 +149,34 @@ class Contact(models.Model):
     character = models.ForeignKey(Character, on_delete=models.CASCADE, related_name='contacts')
     name = models.CharField(max_length=100)
     relationship_type = models.CharField(max_length=20, choices=RELATIONSHIP_CHOICES)
-    description = models.TextField(blank=True)  # Optional additional context
+    description = models.TextField(blank=True)
 
     def __str__(self):
         return f"{self.name} ({self.get_relationship_type_display()})"
+
+
+class Focus(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    description = models.TextField(blank=True)
+    version = models.CharField(max_length=20, default="1.0.0")
+    category = models.CharField(max_length=20, default="COMMON")
+    source = models.CharField(max_length=100, blank=True)
+    max_level = models.PositiveSmallIntegerField(default=2)
+    multi_allowed = models.BooleanField(default=False)
+    prerequisites = JSONField(blank=True, null=True)
+    usage_notes = models.TextField(blank=True)
+    levels = JSONField(blank=True, null=True)
+
+    def __str__(self):
+        return self.name
+
+
+class CharacterFocus(models.Model):
+    character = models.ForeignKey(Character, on_delete=models.CASCADE, related_name='character_focuses')
+    focus = models.ForeignKey(Focus, on_delete=models.CASCADE, related_name='character_focuses')
+    rank = models.PositiveSmallIntegerField(default=1)
+    chosen_skill = models.CharField(max_length=50, blank=True, null=True)
+    usage_data = JSONField(blank=True, null=True)
+
+    def __str__(self):
+        return f"{self.character.name} - {self.focus.name} (Rank {self.rank})"

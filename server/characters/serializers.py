@@ -1,6 +1,19 @@
 from rest_framework import serializers
-from .models import Character, CharacterSkill, Skill, Background, Contact, Edge, CharacterEdge
+from .models import Character, CharacterSkill, Skill, Background, Contact, Edge, CharacterEdge, Focus, CharacterFocus
 
+
+class FocusSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Focus
+        fields = '__all__'
+
+# Create a pivot serializer for CharacterFocus
+class CharacterFocusSerializer(serializers.ModelSerializer):
+    focus = FocusSerializer(read_only=True)
+
+    class Meta:
+        model = CharacterFocus
+        fields = ['focus', 'rank', 'chosen_skill', 'usage_data']
 
 class ContactSerializer(serializers.ModelSerializer):
     class Meta:
@@ -46,6 +59,7 @@ class CharacterSerializer(serializers.ModelSerializer):
     skills = CharacterSkillSerializer(source='characterskill_set', many=True, read_only=True)
     contacts = ContactSerializer(many=True, required=False)
     character_edges = CharacterEdgeSerializer(many=True, read_only=True)
+    character_focuses = CharacterFocusSerializer(many=True, read_only=True)
 
     class Meta:
         model = Character
@@ -64,3 +78,8 @@ class CharacterSerializer(serializers.ModelSerializer):
             instance.creation_data = creation_data
         instance.save()
         return instance
+
+class FocusSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Focus
+        fields = '__all__'

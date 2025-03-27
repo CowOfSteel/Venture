@@ -1,14 +1,106 @@
 from rest_framework import viewsets, permissions, serializers
 from rest_framework.response import Response
-from .models import Character, Background, Skill, CharacterSkill, Contact, Edge, CharacterEdge
-from .serializers import (
-    CharacterSerializer,
-    BackgroundSerializer,
-    SkillSerializer,
-    ContactSerializer,
-    EdgeSerializer
-)
+from .models import Character, Background, Skill, CharacterSkill, Contact, Edge, CharacterEdge, Focus, CharacterFocus
+from .serializers import CharacterSerializer,BackgroundSerializer,SkillSerializer, ContactSerializer, EdgeSerializer, FocusSerializer
 from .services.modifiers import apply_modifiers
+from .services.foci import apply_focus_selection
+
+
+
+def apply_focus_selection(character, focus_selection):
+    """
+    Applies the chosen focus selection to the given character.
+    Expects focus_selection to be a dict with a "foci" key containing a list of objects:
+      { "id": <focus_id>, "rank": <chosen_rank>, "chosen_skill": <optional> }
+    """
+    # Clear any existing CharacterFocus entries for this character.
+    character.character_focuses.all().delete()
+
+    foci_list = focus_selection.get("foci", [])
+    if not foci_list:
+        raise serializers.ValidationError("No foci provided in focus_selection.")
+
+    # Initialize a log for any ephemeral focus effects (not fully implemented yet)
+    creation_data = character.creation_data or {}
+    focus_ephemeral = creation_data.get('focus_ephemeral', [])
+
+    for focus_item in foci_list:
+        focus_id = focus_item.get("id")
+        rank = focus_item.get("rank", 1)
+        chosen_skill = focus_item.get("chosen_skill")  # optional
+
+        try:
+            focus_obj = Focus.objects.get(id=focus_id)
+        except Focus.DoesNotExist:
+            raise serializers.ValidationError(f"Focus with id {focus_id} does not exist.")
+
+        # Validate chosen rank does not exceed max_level.
+        if rank > focus_obj.max_level:
+            raise serializers.ValidationError(
+                f"Focus '{focus_obj.name}' cannot be taken at rank {rank} (max level: {focus_obj.max_level})."
+            )
+
+        # Create a pivot record in CharacterFocus.
+        CharacterFocus.objects.create(
+            character=character,
+            focus=focus_obj,
+            rank=rank,
+            chosen_skill=chosen_skill
+        )
+
+        # Process immediate effects from this focus's levels.
+        levels_data = focus_obj.levels or []
+        for level_entry in levels_data:
+            if level_entry.get("level", 0) <= rank:
+                for effect in level_entry.get("effect_data", []):
+                    effect_type = effect.get("type")
+                    if effect_type == "GRANT_SKILL":
+                        skill_name = effect.get("skill_name")
+                        bonus_points = effect.get("points", 0)
+                        # Retrieve the skill object (case-insensitive match)
+                        try:
+                            skill_obj = Skill.objects.get(name__iexact=skill_name)
+                        except Skill.DoesNotExist:
+                            # Skip if the skill doesn't exist.
+                            continue
+                        # Enforce creation rule: maximum skill level is 1.
+                        cs = CharacterSkill.objects.filter(character=character, skill=skill_obj).first()
+                        if cs is None:
+                            # If bonus_points is given and at least 1, set level to 1.
+                            level = 1 if bonus_points >= 1 else 0
+                            CharacterSkill.objects.create(character=character, skill=skill_obj, level=level)
+                        else:
+                            # If already exists and below 1, upgrade to level 1 if bonus applies.
+                            if cs.level < 1 and bonus_points >= 1:
+                                cs.level = 1
+                                cs.save()
+                        # Optionally, you could log if bonus_points exceed what can be applied.
+                    elif effect_type == "ATTRIBUTE_MOD":
+                        # Example: Modify a specific attribute if not generic.
+                        attribute = effect.get("attribute", "").upper()
+                        amount = effect.get("amount", 0)
+                        if attribute == "STRENGTH":
+                            character.strength = min(character.strength + amount, 18)
+                        elif attribute == "DEXTERITY":
+                            character.dexterity = min(character.dexterity + amount, 18)
+                        elif attribute == "CONSTITUTION":
+                            character.constitution = min(character.constitution + amount, 18)
+                        elif attribute == "INTELLIGENCE":
+                            character.intelligence = min(character.intelligence + amount, 18)
+                        elif attribute == "WISDOM":
+                            character.wisdom = min(character.wisdom + amount, 18)
+                        elif attribute == "CHARISMA":
+                            character.charisma = min(character.charisma + amount, 18)
+                        # For generic categories (ANY, PHYSICAL, MENTAL) we assume the front end handles them.
+                    else:
+                        # For EPHEMERAL_POWER, FOCUS_BUDGET, or any unimplemented effects,
+                        # simply log the effect data in the character's creation_data.
+                        focus_ephemeral.append(effect)
+    # Save the ephemeral effects log back to creation_data.
+    creation_data['focus_ephemeral'] = focus_ephemeral
+    character.creation_data = creation_data
+
+    character.save()
 
 def apply_edge_selection(character, selection):
     """
@@ -173,9 +265,11 @@ class CharacterViewSet(viewsets.ModelViewSet):
         return super().get_queryset().filter(user=self.request.user)
 
     def update(self, request, *args, **kwargs):
-        # Pop background_selection and edge_selection from payload if present
+        # Pop background_selection, edge_selection, and focus_selection from payload if present
         background_selection = request.data.pop('background_selection', None)
         edge_selection = request.data.pop('edge_selection', None)
+        focus_selection = request.data.pop('focus_selection', None)
+
         character = self.get_object()
 
         # Update the character with other fields (including contacts payload if provided)
@@ -197,7 +291,15 @@ class CharacterViewSet(viewsets.ModelViewSet):
                 return Response({"detail": e.detail}, status=400)
             serializer = self.get_serializer(character)
 
+        if focus_selection:
+            try:
+                apply_focus_selection(character, focus_selection)
+            except serializers.ValidationError as e:
+                return Response({"detail": e.detail}, status=400)
+            serializer = self.get_serializer(character)
+
         return Response(serializer.data)
+
 
 class BackgroundViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Background.objects.all()
@@ -207,4 +309,9 @@ class BackgroundViewSet(viewsets.ReadOnlyModelViewSet):
 class EdgeViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Edge.objects.all()
     serializer_class = EdgeSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+class FocusViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Focus.objects.all()
+    serializer_class = FocusSerializer
     permission_classes = [permissions.IsAuthenticated]
