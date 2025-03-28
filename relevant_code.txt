@@ -65,7 +65,7 @@ import Contacts from './components/Contacts';
 import Edges from './components/Edges';
 import EdgeSelection from './components/EdgeSelection';
 import FocusSelection from './components/FocusSelection';
-
+import FinalSteps from './components/FinalSteps';
 
 function App() {
   return (
@@ -86,6 +86,7 @@ function App() {
             <Route path="/characters/:id/contacts" element={<ProtectedRoute><Contacts /></ProtectedRoute>} />
             <Route path="/characters/:id/edges" element={<ProtectedRoute><EdgeSelection /></ProtectedRoute>} />
             <Route path="/characters/:id/foci" element={<ProtectedRoute><FocusSelection /></ProtectedRoute>} />
+            <Route path="/characters/:id/final" element={<ProtectedRoute><FinalSteps /></ProtectedRoute>} />
             <Route path="/characters/:id" element={<ProtectedRoute><ViewCharacter /></ProtectedRoute>} />
 
             {/* Public routes */}
@@ -295,7 +296,6 @@ const AttributeCreation = ({ characterId }) => {
   const [error, setError] = useState(null);
   const navigate = useNavigate();
 
-  // When switching to manual mode, reset manual attributes to null.
   useEffect(() => {
     if (mode === "manual") {
       setManualAttributes({
@@ -309,7 +309,6 @@ const AttributeCreation = ({ characterId }) => {
     }
   }, [mode]);
 
-  // Handler for random roll button
   const handleRoll = () => {
     const newAttributes = {};
     ATTRIBUTE_NAMES.forEach(attr => {
@@ -318,8 +317,6 @@ const AttributeCreation = ({ characterId }) => {
     setAttributes(newAttributes);
   };
 
-  // Handler for manual assignment changes.
-  // 'value' is converted to a number; if empty, we store null.
   const handleManualChange = (attr, value) => {
     setManualAttributes(prev => ({
       ...prev,
@@ -327,9 +324,7 @@ const AttributeCreation = ({ characterId }) => {
     }));
   };
 
-  // Function to get available options for a given attribute.
-  // It returns options not already selected by other fields,
-  // while preserving the already-selected value (if any).
+  // Return only the available manual options that haven't been picked yet.
   const getAvailableOptions = (currentAttr) => {
     const usedValues = ATTRIBUTE_NAMES.filter(a => a !== currentAttr)
       .map(a => manualAttributes[a])
@@ -339,7 +334,6 @@ const AttributeCreation = ({ characterId }) => {
     );
   };
 
-  // Handler to confirm the current attribute selections.
   const handleConfirm = async () => {
     if (mode === "manual") {
       // Ensure every attribute has a selection.
@@ -349,28 +343,29 @@ const AttributeCreation = ({ characterId }) => {
           return;
         }
       }
-      // Merge manual values into attributes.
       setAttributes(manualAttributes);
       setError(null);
       try {
         await axios.patch(`/characters/${characterId}/`, {
-          ...manualAttributes,
+          vitals: { ...manualAttributes },
           creation_data: { step: "attributes" }
         });
         navigate(`/characters/${characterId}/backgrounds`);
       } catch (err) {
         console.error("Error updating attributes:", err);
+        setError("Failed to update character attributes.");
       }
     } else {
-      // For random mode, attributes are already set.
+      // random mode
       try {
         await axios.patch(`/characters/${characterId}/`, {
-          ...attributes,
+          vitals: { ...attributes },
           creation_data: { step: "attributes" }
         });
         navigate(`/characters/${characterId}/backgrounds`);
       } catch (err) {
         console.error("Error updating attributes:", err);
+        setError("Failed to update character attributes.");
       }
     }
   };
@@ -945,10 +940,10 @@ const CharacterForm = () => {
     const strValue = parseInt(strength, 10);
     const dexValue = parseInt(dexterity, 10);
     if (isNaN(strValue) || strValue < 1) {
-      errors.strength = 'Strength must be a valid number.';
+      errors.vitals.strength = 'Strength must be a valid number.';
     }
     if (isNaN(dexValue) || dexValue < 1) {
-      errors.dexterity = 'Dexterity must be a valid number.';
+      errors.vitals.dexterity = 'Dexterity must be a valid number.';
     }
     return errors;
   };
@@ -1077,7 +1072,7 @@ const CharacterList = () => {
           {characters.map((char) => (
             <li key={char.id}>
               <Link to={`/characters/${char.id}`}>
-                {char.name} - STR: {char.strength}, DEX: {char.dexterity}
+                {char.name} - STR: {char.vitals.strength}, DEX: {char.vitals.dexterity}
               </Link>
             </li>
           ))}
@@ -1113,18 +1108,24 @@ const Contacts = () => {
   // State for error messages
   const [error, setError] = useState('');
 
+  const relationshipsMap = {
+  acquaintances: 'acquaintance',
+  friend: 'friend',
+  };
+
   // Initialize contacts based on the selected option
   useEffect(() => {
-    const requiredCount = CONTACT_OPTIONS[contactOption];
-    const initialContacts = [];
-    for (let i = 0; i < requiredCount; i++) {
-      initialContacts.push({
-        name: '',
-        relationship_type: contactOption, // preset from the radio selection
-        description: ''
-      });
-    }
-    setContacts(initialContacts);
+  const requiredCount = CONTACT_OPTIONS[contactOption];
+  const initialContacts = [];
+  for (let i = 0; i < requiredCount; i++) {
+    initialContacts.push({
+      name: '',
+      // Fix the mismatch:
+      relationship_type: relationshipsMap[contactOption],
+      description: ''
+    });
+  }
+  setContacts(initialContacts);
   }, [contactOption]);
 
   const handleContactChange = (index, field, value) => {
@@ -1155,7 +1156,7 @@ const Contacts = () => {
       // Send PATCH request to update the character.
       await api.patch(`/characters/${characterId}/`, payload);
       // Navigate to the next step - placeholder for Edges.
-      navigate('/edges');
+      navigate(`/characters/${characterId}/edges`);
     } catch (err) {
       console.error("Error updating contacts:", err);
       setError("There was an error saving your contacts. Please try again.");
@@ -1473,22 +1474,240 @@ const EdgeSelection = () => {
 export default EdgeSelection;
 
 
------ .\client\src\components\FocusSelection.js -----
+----- .\client\src\components\FinalSteps.js -----
 
-// client/src/components/FocusSelection.js
+// client/src/components/FinalSteps.js
 import React from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 
-const FocusSelection = () => {
+const FinalSteps = () => {
   const { id } = useParams();
 
   return (
     <div className="card">
-      <h2>Focus Selection</h2>
+      <h2>Final Character Creation Steps</h2>
       <p>
-        This is a placeholder for the Focus Selection step in the character creation wizard for character ID: {id}.
+        You have finished selecting your Edges and Foci.
+        <br />
+        Next steps: choose your gear, finalize your character name and goal,
+        and complete any remaining steps.
       </p>
-      <p>Coming Soon!</p>
+      <p>
+        When you're ready, you can view your character summary:{" "}
+        <Link to={`/characters/${id}`}>View Character</Link>
+      </p>
+      <p>
+        (This page is a placeholder and will be expanded in the future.)
+      </p>
+    </div>
+  );
+};
+
+export default FinalSteps;
+
+
+----- .\client\src\components\FocusSelection.js -----
+
+// client/src/components/FocusSelection.js
+
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import api from '../services/api';
+
+const FocusSelection = () => {
+  const { id } = useParams();
+  const navigate = useNavigate();
+
+  const [availableFoci, setAvailableFoci] = useState([]);
+  const [selectedFoci, setSelectedFoci] = useState([]);
+  const [allowedFocusCount, setAllowedFocusCount] = useState(1);
+  const [character, setCharacter] = useState(null);
+  const [error, setError] = useState("");
+
+  // Fetch available foci from /api/foci/
+  useEffect(() => {
+    const fetchFoci = async () => {
+      try {
+        const res = await api.get('/foci/');
+        setAvailableFoci(res.data);
+      } catch (err) {
+        console.error("Error fetching foci:", err);
+        setError("Failed to load foci.");
+      }
+    };
+    fetchFoci();
+  }, []);
+
+  // Fetch character details to determine allowed focus count.
+  useEffect(() => {
+    const fetchCharacter = async () => {
+      try {
+        const res = await api.get(`/characters/${id}/`);
+        setCharacter(res.data);
+        // If any edge has the name "Focused", allow 2 foci; otherwise, allow 1.
+        const focusedEdge = res.data.character_edges.find(
+          (edge) => edge.edge.name.toLowerCase() === "focused"
+        );
+        setAllowedFocusCount(focusedEdge ? 2 : 1);
+      } catch (err) {
+        console.error("Error fetching character:", err);
+        setError("Failed to load character data.");
+      }
+    };
+    fetchCharacter();
+  }, [id]);
+
+  // Handler for selecting a focus from the available list
+  const handleSelectFocus = (focus) => {
+    // If the focus is not multi_allowed and already selected, prevent duplicates.
+    if (!focus.multi_allowed && selectedFoci.find(sf => sf.id === focus.id)) {
+      setError(`You have already selected ${focus.name}.`);
+      return;
+    }
+    if (selectedFoci.length >= allowedFocusCount) {
+      setError(`You may only select up to ${allowedFocusCount} focus${allowedFocusCount > 1 ? 'es' : ''}.`);
+      return;
+    }
+    // Default rank is 1; allow the user to adjust later.
+    const newSelection = {
+      id: focus.id,
+      name: focus.name,
+      rank: 1,
+      chosen_skill: ""
+    };
+    setSelectedFoci([...selectedFoci, newSelection]);
+    setError("");
+  };
+
+  // Handler for removing a selected focus
+  const handleRemoveFocus = (focusId, index) => {
+    const updated = [...selectedFoci];
+    updated.splice(index, 1);
+    setSelectedFoci(updated);
+  };
+
+  // Handler to update the rank for a selected focus
+  const handleRankChange = (index, newRank) => {
+    const updated = [...selectedFoci];
+    updated[index].rank = parseInt(newRank, 10);
+    setSelectedFoci(updated);
+  };
+
+  // Handler for updating chosen skill (if required) for a selected focus
+  const handleChosenSkillChange = (index, chosenSkill) => {
+    const updated = [...selectedFoci];
+    updated[index].chosen_skill = chosenSkill;
+    setSelectedFoci(updated);
+  };
+
+  // Toggle display of level details for each available focus.
+  const [expandedFocus, setExpandedFocus] = useState({});
+  const toggleFocusDetails = (focusId) => {
+    setExpandedFocus(prev => ({
+      ...prev,
+      [focusId]: !prev[focusId]
+    }));
+  };
+
+  // Available skills list for Focuses that require a chosen skill (e.g., "Specialist")
+  const availableSkills = [
+    "Administer", "Connect", "Drive", "Exert", "Fix", "Heal",
+    "Know", "Lead", "Notice", "Perform", "Program", "Punch",
+    "Shoot", "Sneak", "Stab", "Survive", "Talk", "Trade", "Work"
+  ];
+
+  // On confirm, build payload and PATCH to /api/characters/:id/
+  const handleConfirm = async () => {
+    if (selectedFoci.length === 0) {
+      setError("Please select at least one focus.");
+      return;
+    }
+    // (Additional validation can be added here as needed.)
+    const payload = {
+      focus_selection: {
+        foci: selectedFoci.map(focus => ({
+          id: focus.id,
+          rank: focus.rank,
+          chosen_skill: focus.chosen_skill || null
+        }))
+      }
+    };
+    try {
+      await api.patch(`/characters/${id}/`, payload);
+      navigate(`/characters/${id}/final`);
+    } catch (err) {
+      console.error("Error saving focus selection:", err);
+      setError("Error saving focus selection.");
+    }
+  };
+
+  return (
+    <div className="card">
+      <h2>Focus Selection</h2>
+      {error && <div style={{ color: 'red' }}>{error}</div>}
+      <p>You may select up to {allowedFocusCount} focus{allowedFocusCount > 1 ? 'es' : ''}.</p>
+
+      <h3>Available Foci</h3>
+      <ul>
+        {availableFoci.map(focus => (
+          <li key={focus.id} style={{ marginBottom: '15px', borderBottom: '1px solid #ccc', paddingBottom: '10px' }}>
+            <strong>{focus.name}</strong> (Max Level: {focus.max_level})<br />
+            <span>{focus.description}</span><br />
+            <button onClick={() => toggleFocusDetails(focus.id)} style={{ marginRight: '10px' }}>
+              {expandedFocus[focus.id] ? "Hide Levels" : "View Levels"}
+            </button>
+            <button onClick={() => handleSelectFocus(focus)}>
+              Select
+            </button>
+            {expandedFocus[focus.id] && focus.levels && (
+              <div style={{ marginTop: '10px', paddingLeft: '10px', fontStyle: 'italic' }}>
+                {focus.levels.map(level => (
+                  <div key={level.level}>
+                    <strong>Level {level.level}:</strong> {level.summary}
+                  </div>
+                ))}
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
+
+      <h3>Selected Foci</h3>
+      {selectedFoci.length === 0 ? (
+        <p>No foci selected yet.</p>
+      ) : (
+        <ul>
+          {selectedFoci.map((sf, index) => (
+            <li key={index} style={{ marginBottom: '10px' }}>
+              <strong>{sf.name}</strong> – Rank:&nbsp;
+              <select value={sf.rank} onChange={(e) => handleRankChange(index, e.target.value)}>
+                {Array.from({ length: availableFoci.find(f => f.id === sf.id)?.max_level || 1 }, (_, i) => i + 1).map(r => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
+              </select>
+              {/* If this focus requires a chosen skill, e.g., if its name is "Specialist" */}
+              {sf.name.toLowerCase() === "specialist" && (
+                <span>
+                  &nbsp;|&nbsp; Choose Skill:&nbsp;
+                  <select value={sf.chosen_skill} onChange={(e) => handleChosenSkillChange(index, e.target.value)}>
+                    <option value="">Select a skill</option>
+                    {availableSkills.map(skill => (
+                      <option key={skill} value={skill}>{skill}</option>
+                    ))}
+                  </select>
+                </span>
+              )}
+              <button onClick={() => handleRemoveFocus(sf.id, index)} style={{ marginLeft: '10px' }}>
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div style={{ marginTop: '20px' }}>
+        <button onClick={handleConfirm}>Confirm Focus Selection</button>
+      </div>
     </div>
   );
 };
@@ -1843,42 +2062,140 @@ const ViewCharacter = () => {
 
   if (loading) return <div>Loading character details...</div>;
   if (error) return <div style={{ color: 'red' }}>{error}</div>;
+  if (!character) return <div>No character found.</div>;
+
+  // Extract vitals (if available) and assign defaults
+  const vitals = character.vitals || {};
+  const {
+    strength,
+    dexterity,
+    constitution,
+    intelligence,
+    wisdom,
+    charisma,
+    current_hp,
+    max_hp,
+    attack_bonus_base,
+    base_ac,
+    system_strain_current,
+    system_strain_max,
+    trauma_target,
+    save_physical,
+    save_evasion,
+    save_mental,
+    save_luck,
+  } = vitals;
 
   return (
     <div className="card">
       <h2>{character.name}</h2>
-      <h3>Attributes</h3>
-      <ul>
-        <li>Strength: {character.strength}</li>
-        <li>Dexterity: {character.dexterity}</li>
-        <li>Constitution: {character.constitution}</li>
-        <li>Intelligence: {character.intelligence}</li>
-        <li>Wisdom: {character.wisdom}</li>
-        <li>Charisma: {character.charisma}</li>
-      </ul>
+
       <h3>Background</h3>
       {character.background ? (
         <div>
-          <p><strong>{character.background.name}</strong></p>
+          <p>
+            <strong>{character.background.name}</strong>
+          </p>
           <p>{character.background.description}</p>
-          <p>Free Skill: {character.background.free_skill}</p>
         </div>
       ) : (
         <p>No background selected.</p>
       )}
+
+      <h3>Vitals</h3>
+      <ul>
+        <li>
+          <strong>HP:</strong> {current_hp} / {max_hp}
+        </li>
+        <li>
+          <strong>Base AC:</strong> {base_ac}
+        </li>
+        <li>
+          <strong>Attack Bonus (Base):</strong> {attack_bonus_base}
+        </li>
+        <li>
+          <strong>System Strain:</strong> {system_strain_current} / {system_strain_max}
+        </li>
+        <li>
+          <strong>Trauma Target:</strong> {trauma_target}
+        </li>
+      </ul>
+
+      <h3>Attributes</h3>
+      <ul>
+        <li>Strength: {strength}</li>
+        <li>Dexterity: {dexterity}</li>
+        <li>Constitution: {constitution}</li>
+        <li>Intelligence: {intelligence}</li>
+        <li>Wisdom: {wisdom}</li>
+        <li>Charisma: {charisma}</li>
+      </ul>
+
+      <h3>Saving Throws</h3>
+      <ul>
+        <li>Physical: {save_physical}</li>
+        <li>Evasion: {save_evasion}</li>
+        <li>Mental: {save_mental}</li>
+        <li>Luck: {save_luck}</li>
+      </ul>
+
+      <h3>Acquired Skills</h3>
+      {character.skills && character.skills.length > 0 ? (
+        <ul>
+          {character.skills.map((cs, index) => {
+            // Ensure we display the nested skill's name
+            const skillName = cs.skill && cs.skill.name ? cs.skill.name : "Unknown Skill";
+            return (
+              <li key={index}>
+                <strong>{skillName}</strong> – Level: {cs.level}
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <p>No skills acquired yet.</p>
+      )}
+
       <h3>Edges</h3>
       {character.character_edges && character.character_edges.length > 0 ? (
         <ul>
-          {character.character_edges.map((ce, index) => (
-            <li key={index}>
-              <strong>{ce.edge.name}</strong> - {ce.edge.description}
-              {ce.rank > 1 && ` (Rank: ${ce.rank})`}
-            </li>
-          ))}
+          {character.character_edges.map((ce, index) => {
+            const edgeName = ce.edge && ce.edge.name ? ce.edge.name : "Unknown Edge";
+            const edgeDesc = ce.edge && ce.edge.description ? ce.edge.description : "";
+            return (
+              <li key={index}>
+                <strong>{edgeName}</strong> – {edgeDesc}
+                {ce.rank > 1 && ` (Rank: ${ce.rank})`}
+              </li>
+            );
+          })}
         </ul>
       ) : (
         <p>No edges selected.</p>
       )}
+
+      <h3>Foci</h3>
+      {character.character_focuses && character.character_focuses.length > 0 ? (
+        <ul>
+          {character.character_focuses.map((cf, index) => {
+            const focusName = cf.focus && cf.focus.name ? cf.focus.name : "Unknown Focus";
+            return (
+              <li key={index}>
+                <strong>{focusName}</strong> – Rank: {cf.rank}
+                {cf.chosen_skill && ` (Specialty: ${cf.chosen_skill})`}
+                {cf.usage_data && (
+                  <div style={{ fontStyle: 'italic', fontSize: '0.9em' }}>
+                    Usage Data: {JSON.stringify(cf.usage_data)}
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <p>No foci selected yet.</p>
+      )}
+
       <h3>Contacts</h3>
       {character.contacts && character.contacts.length > 0 ? (
         <ul>
@@ -1890,18 +2207,6 @@ const ViewCharacter = () => {
         </ul>
       ) : (
         <p>No contacts have been added yet.</p>
-      )}
-      <h3>Acquired Skills</h3>
-      {character.skills && character.skills.length > 0 ? (
-        <ul>
-          {character.skills.map((cs, index) => (
-            <li key={index}>
-              {cs.skill.name} – Level: {cs.level}
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p>No skills acquired yet.</p>
       )}
     </div>
   );
@@ -2099,6 +2404,9 @@ class CharactersConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
     name = 'characters'
 
+    def ready(self):
+        import characters.signals
+
 
 ----- .\server\characters\models.py -----
 
@@ -2155,15 +2463,14 @@ class Edge(models.Model):
 class CharacterEdge(models.Model):
     character = models.ForeignKey('Character', on_delete=models.CASCADE, related_name='character_edges')
     edge = models.ForeignKey(Edge, on_delete=models.CASCADE, related_name='character_edges')
-
     # Track if an edge is taken more than once (e.g., Focused)
     rank = models.PositiveSmallIntegerField(default=1)
-
     # For future ephemeral usage tracking (e.g., usage counters)
     usage_data = JSONField(blank=True, null=True)
 
     def __str__(self):
         return f"{self.character.name} - {self.edge.name} (Rank {self.rank})"
+
 
 class Skill(models.Model):
     name = models.CharField(max_length=100, unique=True)
@@ -2174,18 +2481,20 @@ class Skill(models.Model):
     def __str__(self):
         return self.name
 
+
 class Character(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='characters')
     name = models.CharField(max_length=100)
     goal = models.CharField(max_length=255, blank=True)
 
-    # Basic Attributes
-    strength = models.PositiveIntegerField(default=10)
-    dexterity = models.PositiveIntegerField(default=10)
-    constitution = models.PositiveIntegerField(default=10)
-    intelligence = models.PositiveIntegerField(default=10)
-    wisdom = models.PositiveIntegerField(default=10)
-    charisma = models.PositiveIntegerField(default=10)
+    # These attributes will be moved to the CharacterVitals model.
+    # Comment them out for now to avoid duplication:
+    # strength = models.PositiveIntegerField(default=10)
+    # dexterity = models.PositiveIntegerField(default=10)
+    # constitution = models.PositiveIntegerField(default=10)
+    # intelligence = models.PositiveIntegerField(default=10)
+    # wisdom = models.PositiveIntegerField(default=10)
+    # charisma = models.PositiveIntegerField(default=10)
 
     # Flag to determine if character creation is complete.
     is_complete = models.BooleanField(default=False)
@@ -2197,6 +2506,7 @@ class Character(models.Model):
                                    null=True, blank=True, related_name='characters')
     edge = models.ManyToManyField(Edge, blank=True, related_name='characters')
     skills = models.ManyToManyField(Skill, through='CharacterSkill', blank=True, related_name='characters')
+    focus = models.ManyToManyField("Focus", through="CharacterFocus", blank=True, related_name="characters")
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -2206,6 +2516,39 @@ class Character(models.Model):
 
     def contact_list(self):
         return self.contacts.all()
+
+
+class CharacterVitals(models.Model):
+    character = models.OneToOneField(Character, on_delete=models.CASCADE, related_name='vitals')
+
+    # Universal Stats
+    current_hp = models.PositiveIntegerField(default=0)
+    max_hp = models.PositiveIntegerField(default=0)
+    attack_bonus_base = models.IntegerField(default=0)
+    base_ac = models.IntegerField(default=0)
+    save_physical = models.IntegerField(default=0)
+    save_evasion = models.IntegerField(default=0)
+    save_mental = models.IntegerField(default=0)
+    save_luck = models.IntegerField(default=0)
+    is_frail = models.BooleanField(default=False)
+    is_mortally_wounded = models.BooleanField(default=False)
+
+    # Moved Attributes (for easier modification later)
+    strength = models.PositiveIntegerField(default=10)
+    dexterity = models.PositiveIntegerField(default=10)
+    constitution = models.PositiveIntegerField(default=10)
+    intelligence = models.PositiveIntegerField(default=10)
+    wisdom = models.PositiveIntegerField(default=10)
+    charisma = models.PositiveIntegerField(default=10)
+
+    # CWn-Specific Fields
+    system_strain_current = models.IntegerField(default=0)
+    system_strain_max = models.IntegerField(default=0)
+    trauma_target = models.IntegerField(default=6)
+    major_injuries = JSONField(blank=True, null=True)
+
+    def __str__(self):
+        return f"{self.character.name}'s Vitals"
 
 class CharacterSkill(models.Model):
     character = models.ForeignKey(Character, on_delete=models.CASCADE)
@@ -2224,28 +2567,25 @@ class CharacterSkill(models.Model):
 
     @property
     def effective_modifier(self):
-        # If a CharacterSkill record exists, its effective modifier is simply the stored level.
         return self.level
+
 
 class Modifier(models.Model):
     MODIFIER_TYPE_CHOICES = [
         ('ATTRIBUTE', 'Attribute'),
         ('SKILL', 'Skill'),
     ]
-    # Indicates the source of the modifier (e.g., 'Background', 'Edge', 'Focus')
     source = models.CharField(max_length=50)
-    # ID of the source record (for traceability)
     source_id = models.IntegerField()
     modifier_type = models.CharField(max_length=20, choices=MODIFIER_TYPE_CHOICES)
-    # For ATTRIBUTE type, you can indicate the category (e.g., "PHYSICAL", "MENTAL", or "ANY")
     category = models.CharField(max_length=20, blank=True, null=True)
-    # For SKILL type, the specific skill name if applicable (e.g., "Punch", "Shoot")
     skill_name = models.CharField(max_length=50, blank=True, null=True)
-    # How many points to add (usually 1 or 2)
     points = models.IntegerField(default=0)
 
     def __str__(self):
         return f"{self.source} (ID: {self.source_id}) - {self.modifier_type}: {self.points}"
+
+
 class Contact(models.Model):
     RELATIONSHIP_CHOICES = [
         ('acquaintance', 'Acquaintance'),
@@ -2254,16 +2594,59 @@ class Contact(models.Model):
     character = models.ForeignKey(Character, on_delete=models.CASCADE, related_name='contacts')
     name = models.CharField(max_length=100)
     relationship_type = models.CharField(max_length=20, choices=RELATIONSHIP_CHOICES)
-    description = models.TextField(blank=True)  # Optional additional context
+    description = models.TextField(blank=True)
 
     def __str__(self):
         return f"{self.name} ({self.get_relationship_type_display()})"
 
 
+class Focus(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    description = models.TextField(blank=True)
+    version = models.CharField(max_length=20, default="1.0.0")
+    category = models.CharField(max_length=20, default="COMMON")
+    source = models.CharField(max_length=100, blank=True)
+    max_level = models.PositiveSmallIntegerField(default=2)
+    multi_allowed = models.BooleanField(default=False)
+    prerequisites = JSONField(blank=True, null=True)
+    usage_notes = models.TextField(blank=True)
+    levels = JSONField(blank=True, null=True)
+
+    def __str__(self):
+        return self.name
+
+
+class CharacterFocus(models.Model):
+    character = models.ForeignKey(Character, on_delete=models.CASCADE, related_name='character_focuses')
+    focus = models.ForeignKey(Focus, on_delete=models.CASCADE, related_name='character_focuses')
+    rank = models.PositiveSmallIntegerField(default=1)
+    chosen_skill = models.CharField(max_length=50, blank=True, null=True)
+    usage_data = JSONField(blank=True, null=True)
+
+    def __str__(self):
+        return f"{self.character.name} - {self.focus.name} (Rank {self.rank})"
+
+
 ----- .\server\characters\serializers.py -----
 
 from rest_framework import serializers
-from .models import Character, CharacterSkill, Skill, Background, Contact, Edge, CharacterEdge
+from .models import (
+    Character, CharacterSkill, Skill, Background, Contact, Edge,
+    CharacterEdge, Focus, CharacterFocus, CharacterVitals
+)
+
+class FocusSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Focus
+        fields = '__all__'
+
+
+class CharacterFocusSerializer(serializers.ModelSerializer):
+    focus = FocusSerializer(read_only=True)
+
+    class Meta:
+        model = CharacterFocus
+        fields = ['focus', 'rank', 'chosen_skill', 'usage_data']
 
 
 class ContactSerializer(serializers.ModelSerializer):
@@ -2271,8 +2654,13 @@ class ContactSerializer(serializers.ModelSerializer):
         model = Contact
         fields = ['id', 'name', 'relationship_type', 'description']
 
+class SkillSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Skill
+        fields = ['id', 'name', 'description', 'category', 'default_modifier']
 
 class CharacterSkillSerializer(serializers.ModelSerializer):
+    skill = SkillSerializer(read_only=True)
     effective_modifier = serializers.IntegerField()
 
     class Meta:
@@ -2299,17 +2687,28 @@ class BackgroundSerializer(serializers.ModelSerializer):
         model = Background
         fields = '__all__'
 
-
-class SkillSerializer(serializers.ModelSerializer):
+class CharacterVitalsSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Skill
-        fields = '__all__'
+        model = CharacterVitals
+        fields = [
+            'strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma',
+            'current_hp', 'max_hp',
+            'attack_bonus_base', 'base_ac',
+            'save_physical', 'save_evasion', 'save_mental', 'save_luck',
+            'is_frail', 'is_mortally_wounded',
+            'system_strain_current', 'system_strain_max',
+            'trauma_target', 'major_injuries',
+        ]
+        # By default, partial updates are allowed if we call patch() with "partial=True"
 
 
 class CharacterSerializer(serializers.ModelSerializer):
     skills = CharacterSkillSerializer(source='characterskill_set', many=True, read_only=True)
     contacts = ContactSerializer(many=True, required=False)
     character_edges = CharacterEdgeSerializer(many=True, read_only=True)
+    character_focuses = CharacterFocusSerializer(many=True, read_only=True)
+    # Make vitals writable
+    vitals = CharacterVitalsSerializer(required=False)
 
     class Meta:
         model = Character
@@ -2317,6 +2716,19 @@ class CharacterSerializer(serializers.ModelSerializer):
         read_only_fields = ['user', 'created_at', 'updated_at']
 
     def update(self, instance, validated_data):
+        # Handle nested Vitals
+        vitals_data = validated_data.pop('vitals', None)
+        if vitals_data is not None:
+            # Partial update for nested model
+            vitals_serializer = CharacterVitalsSerializer(
+                instance=instance.vitals,
+                data=vitals_data,
+                partial=True
+            )
+            vitals_serializer.is_valid(raise_exception=True)
+            vitals_serializer.save()
+
+        # Handle contacts (unchanged)
         contacts_data = validated_data.pop('contacts', None)
         instance = super().update(instance, validated_data)
         if contacts_data is not None:
@@ -2326,8 +2738,58 @@ class CharacterSerializer(serializers.ModelSerializer):
             creation_data = instance.creation_data or {}
             creation_data['contacts_completed'] = True
             instance.creation_data = creation_data
+
         instance.save()
         return instance
+
+
+# Duplicated FocusSerializer (not strictly needed, but left if your code references it)
+class FocusSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Focus
+        fields = '__all__'
+
+
+----- .\server\characters\signals.py -----
+
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+from .models import Character, CharacterVitals
+
+@receiver(post_save, sender=Character)
+def create_or_update_character_vitals(sender, instance, created, **kwargs):
+    if created:
+        # Create a CharacterVitals instance with default values.
+        # Set current_hp and max_hp to 1 (as a baseline).
+        CharacterVitals.objects.create(
+            character=instance,
+            current_hp=1,
+            max_hp=1,
+            attack_bonus_base=0,
+            base_ac=0,
+            save_physical=0,
+            save_evasion=0,
+            save_mental=0,
+            save_luck=0,
+            is_frail=False,
+            is_mortally_wounded=False,
+            strength=10,
+            dexterity=10,
+            constitution=10,
+            intelligence=10,
+            wisdom=10,
+            charisma=10,
+            system_strain_current=0,
+            system_strain_max=0,
+            trauma_target=6,
+            major_injuries=None  # or {} if you prefer an empty dict
+        )
+    else:
+        # Optionally, you can update the vitals here if needed.
+        # For now, we simply save the existing vitals to ensure any signals
+        # connected with it are triggered.
+        if hasattr(instance, 'vitals'):
+            instance.vitals.save()
 
 
 ----- .\server\characters\tests.py -----
@@ -2341,15 +2803,107 @@ from django.test import TestCase
 
 from rest_framework import viewsets, permissions, serializers
 from rest_framework.response import Response
-from .models import Character, Background, Skill, CharacterSkill, Contact, Edge, CharacterEdge
-from .serializers import (
-    CharacterSerializer,
-    BackgroundSerializer,
-    SkillSerializer,
-    ContactSerializer,
-    EdgeSerializer
-)
+from .models import Character, Background, Skill, CharacterSkill, Contact, Edge, CharacterEdge, Focus, CharacterFocus
+from .serializers import CharacterSerializer,BackgroundSerializer,SkillSerializer, ContactSerializer, EdgeSerializer, FocusSerializer
 from .services.modifiers import apply_modifiers
+from .services.foci import apply_focus_selection
+
+
+
+def apply_focus_selection(character, focus_selection):
+    """
+    Applies the chosen focus selection to the given character.
+    Expects focus_selection to be a dict with a "foci" key containing a list of objects:
+      { "id": <focus_id>, "rank": <chosen_rank>, "chosen_skill": <optional> }
+    """
+    # Clear any existing CharacterFocus entries for this character.
+    character.character_focuses.all().delete()
+
+    foci_list = focus_selection.get("foci", [])
+    if not foci_list:
+        raise serializers.ValidationError("No foci provided in focus_selection.")
+
+    # Initialize a log for any ephemeral focus effects (not fully implemented yet)
+    creation_data = character.creation_data or {}
+    focus_ephemeral = creation_data.get('focus_ephemeral', [])
+
+    for focus_item in foci_list:
+        focus_id = focus_item.get("id")
+        rank = focus_item.get("rank", 1)
+        chosen_skill = focus_item.get("chosen_skill")  # optional
+
+        try:
+            focus_obj = Focus.objects.get(id=focus_id)
+        except Focus.DoesNotExist:
+            raise serializers.ValidationError(f"Focus with id {focus_id} does not exist.")
+
+        # Validate chosen rank does not exceed max_level.
+        if rank > focus_obj.max_level:
+            raise serializers.ValidationError(
+                f"Focus '{focus_obj.name}' cannot be taken at rank {rank} (max level: {focus_obj.max_level})."
+            )
+
+        # Create a pivot record in CharacterFocus.
+        CharacterFocus.objects.create(
+            character=character,
+            focus=focus_obj,
+            rank=rank,
+            chosen_skill=chosen_skill
+        )
+
+        # Process immediate effects from this focus's levels.
+        levels_data = focus_obj.levels or []
+        for level_entry in levels_data:
+            if level_entry.get("level", 0) <= rank:
+                for effect in level_entry.get("effect_data", []):
+                    effect_type = effect.get("type")
+                    if effect_type == "GRANT_SKILL":
+                        skill_name = effect.get("skill_name")
+                        bonus_points = effect.get("points", 0)
+                        # Retrieve the skill object (case-insensitive match)
+                        try:
+                            skill_obj = Skill.objects.get(name__iexact=skill_name)
+                        except Skill.DoesNotExist:
+                            # Skip if the skill doesn't exist.
+                            continue
+                        # Enforce creation rule: maximum skill level is 1.
+                        cs = CharacterSkill.objects.filter(character=character, skill=skill_obj).first()
+                        if cs is None:
+                            # If bonus_points is given and at least 1, set level to 1.
+                            level = 1 if bonus_points >= 1 else 0
+                            CharacterSkill.objects.create(character=character, skill=skill_obj, level=level)
+                        else:
+                            # If already exists and below 1, upgrade to level 1 if bonus applies.
+                            if cs.level < 1 and bonus_points >= 1:
+                                cs.level = 1
+                                cs.save()
+                        # Optionally, you could log if bonus_points exceed what can be applied.
+                    elif effect_type == "ATTRIBUTE_MOD":
+                        # Example: Modify a specific attribute if not generic.
+                        attribute = effect.get("attribute", "").upper()
+                        amount = effect.get("amount", 0)
+                        if attribute == "STRENGTH":
+                            character.vitals.strength = min(character.vitals.strength + amount, 18)
+                        elif attribute == "DEXTERITY":
+                            character.vitals.dexterity = min(character.vitals.dexterity + amount, 18)
+                        elif attribute == "CONSTITUTION":
+                            character.vitals.constitution = min(character.vitals.constitution + amount, 18)
+                        elif attribute == "INTELLIGENCE":
+                            character.vitals.intelligence = min(character.vitals.intelligence + amount, 18)
+                        elif attribute == "WISDOM":
+                            character.vitals.wisdom = min(character.vitals.wisdom + amount, 18)
+                        elif attribute == "CHARISMA":
+                            character.vitals.charisma = min(character.vitals.charisma + amount, 18)
+                        # For generic categories (ANY, PHYSICAL, MENTAL) we assume the front end handles them.
+                    else:
+                        # For EPHEMERAL_POWER, FOCUS_BUDGET, or any unimplemented effects,
+                        # simply log the effect data in the character's creation_data.
+                        focus_ephemeral.append(effect)
+    # Save the ephemeral effects log back to creation_data.
+    creation_data['focus_ephemeral'] = focus_ephemeral
+    character.creation_data = creation_data
+
+    character.save()
 
 def apply_edge_selection(character, selection):
     """
@@ -2514,9 +3068,11 @@ class CharacterViewSet(viewsets.ModelViewSet):
         return super().get_queryset().filter(user=self.request.user)
 
     def update(self, request, *args, **kwargs):
-        # Pop background_selection and edge_selection from payload if present
+        # Pop background_selection, edge_selection, and focus_selection from payload if present
         background_selection = request.data.pop('background_selection', None)
         edge_selection = request.data.pop('edge_selection', None)
+        focus_selection = request.data.pop('focus_selection', None)
+
         character = self.get_object()
 
         # Update the character with other fields (including contacts payload if provided)
@@ -2538,7 +3094,15 @@ class CharacterViewSet(viewsets.ModelViewSet):
                 return Response({"detail": e.detail}, status=400)
             serializer = self.get_serializer(character)
 
+        if focus_selection:
+            try:
+                apply_focus_selection(character, focus_selection)
+            except serializers.ValidationError as e:
+                return Response({"detail": e.detail}, status=400)
+            serializer = self.get_serializer(character)
+
         return Response(serializer.data)
+
 
 class BackgroundViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Background.objects.all()
@@ -2550,9 +3114,15 @@ class EdgeViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = EdgeSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+class FocusViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Focus.objects.all()
+    serializer_class = FocusSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
 
 ----- .\server\characters\__init__.py -----
 
+default_app_config = 'characters.apps.CharactersConfig'
 
 
 ----- .\server\characters\fixtures\initial_backgrounds.json -----
@@ -3635,6 +4205,1220 @@ class EdgeViewSet(viewsets.ReadOnlyModelViewSet):
 ]
 
 
+----- .\server\characters\fixtures\initial_foci.json -----
+
+[
+  {
+    "model": "characters.focus",
+    "pk": 1,
+    "fields": {
+      "name": "Ace Driver",
+      "description": "If it’s got wheels or wings, you can drive it with uncanny aptitude.",
+      "version": "1.0.0",
+      "category": "COMMON",
+      "source": "Cities Without Number",
+      "max_level": 2,
+      "multi_allowed": false,
+      "prerequisites": {},
+      "usage_notes": "Applies only to vehicles, not drones. The gear budget increases by character level (see section 1.6.2).",
+      "levels": [
+        {
+          "level": 1,
+          "summary": "Level 1: Gain Drive as a bonus skill. Once per scene, reroll a failed driving or vehicle repair check. You have a vehicle gear budget and can replace lost/destroyed vehicles at a set rate.",
+          "effect_data": [
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "Drive",
+              "points": 1
+            },
+            {
+              "type": "EPHEMERAL_POWER",
+              "name": "reroll_driving_check",
+              "frequency": "SCENE",
+              "description": "Reroll one failed driving or related check per scene."
+            },
+            {
+              "type": "FOCUS_BUDGET",
+              "category": "vehicle",
+              "base_amount": 5000,
+              "description": "Vehicle gear budget at level 1."
+            }
+          ]
+        },
+        {
+          "level": 2,
+          "summary": "Level 2: Gain Fix as a bonus skill. Increase your driven vehicle’s Speed by 1. Once per vehicle, add a free mod that only you can use and doesn’t require maintenance.",
+          "effect_data": [
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "Fix",
+              "points": 1
+            },
+            {
+              "type": "MISC_BONUS",
+              "target": "vehicle_speed",
+              "amount": 1
+            },
+            {
+              "type": "FREE_VEHICLE_MOD",
+              "description": "Install one free mod in a vehicle you drive. Requires no Maintenance."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "model": "characters.focus",
+    "pk": 2,
+    "fields": {
+      "name": "Alert",
+      "description": "Keenly aware of your surroundings, you’re almost impossible to ambush.",
+      "version": "1.0.0",
+      "category": "COMMON",
+      "source": "Cities Without Number",
+      "max_level": 2,
+      "multi_allowed": false,
+      "prerequisites": {},
+      "usage_notes": "Helps avoid surprise and initiative disadvantages.",
+      "levels": [
+        {
+          "level": 1,
+          "summary": "Level 1: Gain Notice as a bonus skill. You cannot be surprised, nor be targeted by Execution Attacks from stealth. Your party rolls initiative twice and takes the better result.",
+          "effect_data": [
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "Notice",
+              "points": 1
+            },
+            {
+              "type": "MISC_BONUS",
+              "target": "no_surprise",
+              "amount": 1
+            },
+            {
+              "type": "INITIATIVE_BONUS",
+              "description": "Roll initiative twice for the entire group, pick best."
+            }
+          ]
+        },
+        {
+          "level": 2,
+          "summary": "Level 2: Always act first each round unless someone else is also Alert at level 2.",
+          "effect_data": [
+            {
+              "type": "INITIATIVE_BONUS",
+              "description": "Act first in combat each round."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "model": "characters.focus",
+    "pk": 3,
+    "fields": {
+      "name": "All Natural",
+      "description": "Your physical and mental brilliance rejects most cyber augmentation.",
+      "version": "1.0.0",
+      "category": "COMMON",
+      "source": "Cities Without Number",
+      "max_level": 1,
+      "multi_allowed": false,
+      "prerequisites": {
+        "no_cyberware": true
+      },
+      "usage_notes": "Cannot safely receive implants except trivial cosmetic ones.",
+      "levels": [
+        {
+          "level": 1,
+          "summary": "Gain any skill as a bonus skill. Increase one attribute’s modifier by +1 (max +3). At certain levels, can pick again. You can still suffer Traumatic Hits, but never suffer Major Injuries.",
+          "effect_data": [
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "ANY",
+              "points": 1
+            },
+            {
+              "type": "ATTRIBUTE_MOD",
+              "attribute": "ANY_ONE",
+              "amount": 1,
+              "max_modifier": 3
+            },
+            {
+              "type": "NO_MAJOR_INJURIES",
+              "description": "You never suffer Major Injuries from Traumatic Hits."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "model": "characters.focus",
+    "pk": 4,
+    "fields": {
+      "name": "Armsmaster",
+      "description": "You excel at melee or thrown-weapon combat (not unarmed).",
+      "version": "1.0.0",
+      "category": "COMMON",
+      "source": "Cities Without Number",
+      "max_level": 2,
+      "multi_allowed": false,
+      "prerequisites": {},
+      "usage_notes": "Doesn’t stack with Deadeye or other skill-level-to-damage Foci.",
+      "levels": [
+        {
+          "level": 1,
+          "summary": "Level 1: Gain Stab as a bonus skill. Ready a stowed melee/thrown weapon as an Instant action. Add your Stab skill level to damage or Shock when using melee/thrown weapons.",
+          "effect_data": [
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "Stab",
+              "points": 1
+            },
+            {
+              "type": "MISC_BONUS",
+              "target": "stab_skill_damage",
+              "amount": 1
+            }
+          ]
+        },
+        {
+          "level": 2,
+          "summary": "Level 2: Your melee Shock always applies as if target AC were 10. +1 to hit with all thrown or melee attacks.",
+          "effect_data": [
+            {
+              "type": "SHOCK_AC_BYPASS",
+              "value": 10
+            },
+            {
+              "type": "MISC_BONUS",
+              "target": "hit_roll",
+              "amount": 1,
+              "description": "Applies only to thrown or melee attacks."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "model": "characters.focus",
+    "pk": 5,
+    "fields": {
+      "name": "Assassin",
+      "description": "You’re skilled at sudden murder and Execution Attacks.",
+      "version": "1.0.0",
+      "category": "COMMON",
+      "source": "Cities Without Number",
+      "max_level": 2,
+      "multi_allowed": false,
+      "prerequisites": {},
+      "usage_notes": "",
+      "levels": [
+        {
+          "level": 1,
+          "summary": "Level 1: Gain Sneak. You can conceal a pistol/knife from basic scans. At point-blank from surprise, you cannot miss with that weapon.",
+          "effect_data": [
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "Sneak",
+              "points": 1
+            },
+            {
+              "type": "CONCEAL_WEAPON",
+              "size": "pistol_or_knife"
+            },
+            {
+              "type": "AUTO_HIT_FROM_SURPRISE",
+              "range": "point_blank"
+            }
+          ]
+        },
+        {
+          "level": 2,
+          "summary": "Level 2: You can still Move before or after your Execution Attack, splitting the move around the kill. Movement is too quick to alert your victim.",
+          "effect_data": [
+            {
+              "type": "EXECUTION_MOVE",
+              "description": "Move action can be split around your Execution Attack."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "model": "characters.focus",
+    "pk": 6,
+    "fields": {
+      "name": "Authority",
+      "description": "Your force of personality compels others to follow you.",
+      "version": "1.0.0",
+      "category": "COMMON",
+      "source": "Cities Without Number",
+      "max_level": 2,
+      "multi_allowed": false,
+      "prerequisites": {},
+      "usage_notes": "Limited to NPC loyalty; does not affect PCs directly.",
+      "levels": [
+        {
+          "level": 1,
+          "summary": "Level 1: Gain Lead. Once per day, you can force a non-hostile NPC to comply with a request that isn’t obviously harmful.",
+          "effect_data": [
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "Lead",
+              "points": 1
+            },
+            {
+              "type": "EPHEMERAL_POWER",
+              "name": "request_compliance",
+              "frequency": "DAILY"
+            }
+          ]
+        },
+        {
+          "level": 2,
+          "summary": "Level 2: Those you lead gain a bonus to Morale, attack rolls, and +1 to all skill checks equal to your Lead skill. They won’t betray you unless forced.",
+          "effect_data": [
+            {
+              "type": "MORALE_BONUS",
+              "value": "lead_skill"
+            },
+            {
+              "type": "HIT_BONUS",
+              "value": "lead_skill"
+            },
+            {
+              "type": "SKILL_BONUS",
+              "value": 1
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "model": "characters.focus",
+    "pk": 7,
+    "fields": {
+      "name": "Close Combatant",
+      "description": "You excel at close-range gunplay and avoiding melee Shock.",
+      "version": "1.0.0",
+      "category": "COMMON",
+      "source": "Cities Without Number",
+      "max_level": 2,
+      "multi_allowed": false,
+      "prerequisites": {},
+      "usage_notes": "Lets you shoot pistol-sized weapons in melee without penalty and avoid Shock.",
+      "levels": [
+        {
+          "level": 1,
+          "summary": "Level 1: Gain any combat skill. You can use a pistol in melee without a -4. Ignore Shock from melee attacks, even unarmored.",
+          "effect_data": [
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "ANY_COMBAT",
+              "points": 1
+            },
+            {
+              "type": "IGNORE_MELEE_SHOCK",
+              "description": "You do not suffer Shock damage in melee."
+            }
+          ]
+        },
+        {
+          "level": 2,
+          "summary": "Level 2: Your melee Shock always treats targets as if AC 10. Fighting Withdrawal is an On Turn action (no Main Action).",
+          "effect_data": [
+            {
+              "type": "SHOCK_AC_BYPASS",
+              "value": 10
+            },
+            {
+              "type": "FIGHTING_WITHDRAWAL_UPGRADE"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "model": "characters.focus",
+    "pk": 8,
+    "fields": {
+      "name": "Cyberdoc",
+      "description": "You’re specially gifted at implanting and maintaining cyberware.",
+      "version": "1.0.0",
+      "category": "COMMON",
+      "source": "Cities Without Number",
+      "max_level": 2,
+      "multi_allowed": false,
+      "prerequisites": {},
+      "usage_notes": "",
+      "levels": [
+        {
+          "level": 1,
+          "summary": "Level 1: Gain Fix and Heal. Start with a cyberdoc kit. +2 on surgery checks. Performing maintenance on someone reduces their total System Strain by 1.",
+          "effect_data": [
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "Fix",
+              "points": 1
+            },
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "Heal",
+              "points": 1
+            },
+            {
+              "type": "GRANT_GEAR",
+              "gear": "cyberdoc_kit",
+              "description": "Basic medical kit for implants."
+            },
+            {
+              "type": "SURGERY_BONUS",
+              "amount": 2
+            },
+            {
+              "type": "SYSTEM_STRAIN_REDUCE",
+              "amount": 1
+            }
+          ]
+        },
+        {
+          "level": 2,
+          "summary": "Level 2: Maintenance reduces System Strain by 2. You never fail to install cyber. Once per patient, build/install a cyber mod at no cost.",
+          "effect_data": [
+            {
+              "type": "SYSTEM_STRAIN_REDUCE",
+              "amount": 2
+            },
+            {
+              "type": "NO_IMPLANT_FAILURE"
+            },
+            {
+              "type": "FREE_CYBER_MOD"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "model": "characters.focus",
+    "pk": 9,
+    "fields": {
+      "name": "Deadeye",
+      "description": "You’re a crack shot with ranged weapons, including thrown.",
+      "version": "1.0.0",
+      "category": "COMMON",
+      "source": "Cities Without Number",
+      "max_level": 2,
+      "multi_allowed": false,
+      "prerequisites": {},
+      "usage_notes": "Doesn’t stack with Armsmaster if you’re throwing weapons.",
+      "levels": [
+        {
+          "level": 1,
+          "summary": "Level 1: Gain Shoot. Ready a stowed ranged weapon as an Instant action. Add your Shoot skill level to its damage.",
+          "effect_data": [
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "Shoot",
+              "points": 1
+            },
+            {
+              "type": "MISC_BONUS",
+              "target": "shoot_skill_damage",
+              "amount": 1
+            }
+          ]
+        },
+        {
+          "level": 2,
+          "summary": "Level 2: Reload guns or crossbows as an On Turn action if it normally takes a round. You can use two-handed ranged weapons in melee. Once per scene, automatically hit an inanimate target (unless physically impossible).",
+          "effect_data": [
+            {
+              "type": "FAST_RELOAD"
+            },
+            {
+              "type": "RANGED_IN_MELEE_OK"
+            },
+            {
+              "type": "EPHEMERAL_POWER",
+              "name": "auto_hit_inanimate",
+              "frequency": "SCENE"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "model": "characters.focus",
+    "pk": 10,
+    "fields": {
+      "name": "Diplomat",
+      "description": "You know how to get your way in personal negotiations.",
+      "version": "1.0.0",
+      "category": "COMMON",
+      "source": "Cities Without Number",
+      "max_level": 2,
+      "multi_allowed": false,
+      "prerequisites": {},
+      "usage_notes": "Only works if the other party is actually willing to listen.",
+      "levels": [
+        {
+          "level": 1,
+          "summary": "Level 1: Gain Talk. You speak all common local languages. Reroll 1s on negotiation or diplomacy checks.",
+          "effect_data": [
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "Talk",
+              "points": 1
+            },
+            {
+              "type": "LANGUAGE_BONUS",
+              "description": "Speak the city’s common tongues."
+            },
+            {
+              "type": "REROLL_ONES",
+              "skill_categories": ["negotiation"]
+            }
+          ]
+        },
+        {
+          "level": 2,
+          "summary": "Level 2: Once per game session, shift an intelligent NPC’s reaction one step friendlier if you can talk to them for at least 30 seconds.",
+          "effect_data": [
+            {
+              "type": "EPHEMERAL_POWER",
+              "name": "shift_reaction_friendlier",
+              "frequency": "SESSION"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "model": "characters.focus",
+    "pk": 11,
+    "fields": {
+      "name": "Drone Pilot",
+      "description": "You have a special knack for drone operation and maintenance.",
+      "version": "1.0.0",
+      "category": "COMMON",
+      "source": "Cities Without Number",
+      "max_level": 2,
+      "multi_allowed": false,
+      "prerequisites": {},
+      "usage_notes": "Grants a separate drone gear budget. You can replicate destroyed drones weekly.",
+      "levels": [
+        {
+          "level": 1,
+          "summary": "Level 1: Gain Drive and Fix. You start with a Remote Control Unit cyber plus a drone budget. You can fix or rebuild your drones quickly.",
+          "effect_data": [
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "Drive",
+              "points": 1
+            },
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "Fix",
+              "points": 1
+            },
+            {
+              "type": "GRANT_GEAR",
+              "gear": "Remote_Control_Unit_Cyber",
+              "description": "Installed at start."
+            },
+            {
+              "type": "FOCUS_BUDGET",
+              "category": "drone",
+              "base_amount": 1000,
+              "description": "Drone gear budget at level 1."
+            }
+          ]
+        },
+        {
+          "level": 2,
+          "summary": "Level 2: Once per scene, gain a bonus Main Action to command a drone. Your drones gain +2 to hit rolls while you command them.",
+          "effect_data": [
+            {
+              "type": "EPHEMERAL_POWER",
+              "name": "bonus_drone_action",
+              "frequency": "SCENE"
+            },
+            {
+              "type": "MISC_BONUS",
+              "target": "drone_hit_roll",
+              "amount": 2
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "model": "characters.focus",
+    "pk": 12,
+    "fields": {
+      "name": "Expert Programmer",
+      "description": "You go beyond mere hacking, shaping code like clay in your hands.",
+      "version": "1.0.0",
+      "category": "COMMON",
+      "source": "Cities Without Number",
+      "max_level": 2,
+      "multi_allowed": false,
+      "prerequisites": {},
+      "usage_notes": "Interacts with cyberspace program writing and memory usage.",
+      "levels": [
+        {
+          "level": 1,
+          "summary": "Level 1: Gain Program. You can maintain extra program elements (char level +2). Once per day, on-the-fly reassign one Subject element to another.",
+          "effect_data": [
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "Program",
+              "points": 1
+            },
+            {
+              "type": "PROGRAM_CAPACITY",
+              "extra": 2
+            },
+            {
+              "type": "EPHEMERAL_POWER",
+              "name": "change_subject_element",
+              "frequency": "DAILY"
+            }
+          ]
+        },
+        {
+          "level": 2,
+          "summary": "Level 2: Your program elements take half Memory. A cyberdeck you use gains a CPU bonus equal to your Program skill.",
+          "effect_data": [
+            {
+              "type": "HALF_MEMORY_USAGE"
+            },
+            {
+              "type": "CYBERDECK_CPU_BONUS",
+              "formula": "program_skill"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "model": "characters.focus",
+    "pk": 13,
+    "fields": {
+      "name": "Healer",
+      "description": "Your healing talents border on miraculous.",
+      "version": "1.0.0",
+      "category": "COMMON",
+      "source": "Cities Without Number",
+      "max_level": 2,
+      "multi_allowed": false,
+      "prerequisites": {},
+      "usage_notes": "",
+      "levels": [
+        {
+          "level": 1,
+          "summary": "Level 1: Gain Heal. You can stabilize one Mortally Wounded ally per round as an On Turn action. Roll 3d6 drop lowest on Heal checks.",
+          "effect_data": [
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "Heal",
+              "points": 1
+            },
+            {
+              "type": "FASTER_STABILIZE",
+              "description": "Can stabilize mortally-wounded ally as On Turn action."
+            },
+            {
+              "type": "SKILL_ROLL_BONUS",
+              "method": "3d6_drop_lowest",
+              "skill_name": "Heal"
+            }
+          ]
+        },
+        {
+          "level": 2,
+          "summary": "Level 2: Double healing from medtech or drugs you apply. Once per day, you can provide 1d6+Heal HP to every injured ally with 10 minutes of first aid, with no System Strain cost.",
+          "effect_data": [
+            {
+              "type": "DOUBLE_MEDTECH_HEAL"
+            },
+            {
+              "type": "EPHEMERAL_POWER",
+              "name": "mass_first_aid",
+              "frequency": "DAILY"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "model": "characters.focus",
+    "pk": 14,
+    "fields": {
+      "name": "Henchkeeper",
+      "description": "You pick up loyal (if not bright) followers wherever you go.",
+      "version": "1.0.0",
+      "category": "COMMON",
+      "source": "Cities Without Number",
+      "max_level": 2,
+      "multi_allowed": false,
+      "prerequisites": {},
+      "usage_notes": "",
+      "levels": [
+        {
+          "level": 1,
+          "summary": "Level 1: Gain Lead. You can recruit normal henchmen quickly in any new locale. They won’t fight except in self-defense. You can have 1 henchman per 3 character levels.",
+          "effect_data": [
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "Lead",
+              "points": 1
+            },
+            {
+              "type": "HENCHMEN_RECRUIT",
+              "max_count_formula": "ceil(level/3)"
+            }
+          ]
+        },
+        {
+          "level": 2,
+          "summary": "Level 2: Your henchmen are loyal and will fight except vs. overwhelming odds. They act as Basic Corp Security if pressed into combat. Skilled NPCs can be recruited if you’ve earned their devotion.",
+          "effect_data": [
+            {
+              "type": "UPGRADE_HENCHMEN",
+              "description": "They fight at Basic Corp Security competence."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "model": "characters.focus",
+    "pk": 15,
+    "fields": {
+      "name": "Many Faces",
+      "description": "You maintain multiple deep-cover identities in corporate databases.",
+      "version": "1.0.0",
+      "category": "COMMON",
+      "source": "Cities Without Number",
+      "max_level": 1,
+      "multi_allowed": false,
+      "prerequisites": {},
+      "usage_notes": "Allows easy replacement of identities if compromised.",
+      "levels": [
+        {
+          "level": 1,
+          "summary": "Gain Sneak. You can maintain one false identity per 3 character levels. These identities are fully authenticated in corp systems. Changing an identity takes a week of downtime.",
+          "effect_data": [
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "Sneak",
+              "points": 1
+            },
+            {
+              "type": "MULTI_IDENTITY",
+              "formula": "ceil(level/3)"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "model": "characters.focus",
+    "pk": 16,
+    "fields": {
+      "name": "Pop Idol",
+      "description": "You have a devoted fan base ready to do your bidding.",
+      "version": "1.0.0",
+      "category": "COMMON",
+      "source": "Cities Without Number",
+      "max_level": 2,
+      "multi_allowed": false,
+      "prerequisites": {},
+      "usage_notes": "",
+      "levels": [
+        {
+          "level": 1,
+          "summary": "Level 1: Gain Perform. Once per game week, mobilize ~100 fans for mild tasks or earn $1k/level from donations or merch sales.",
+          "effect_data": [
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "Perform",
+              "points": 1
+            },
+            {
+              "type": "EPHEMERAL_POWER",
+              "name": "fan_mobilization",
+              "frequency": "WEEKLY"
+            }
+          ]
+        },
+        {
+          "level": 2,
+          "summary": "Level 2: You can rally up to 100 fans per character level. You can hide your involvement through local fan leaders. Donations double. Your Charisma modifier is +1 (max +2).",
+          "effect_data": [
+            {
+              "type": "FAN_MOB_UPGRADE",
+              "description": "Up to 100 fans x level. Donations/merch double."
+            },
+            {
+              "type": "ATTRIBUTE_MOD",
+              "attribute": "CHA",
+              "amount": 1,
+              "max_modifier": 2
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "model": "characters.focus",
+    "pk": 17,
+    "fields": {
+      "name": "Roamer",
+      "description": "You’ve traveled widely on foot or by stowing away on transport.",
+      "version": "1.0.0",
+      "category": "COMMON",
+      "source": "Cities Without Number",
+      "max_level": 2,
+      "multi_allowed": false,
+      "prerequisites": {},
+      "usage_notes": "Similar to Ace Driver but more general. Also grants vehicle budget.",
+      "levels": [
+        {
+          "level": 1,
+          "summary": "Level 1: Gain Survive and Drive. You speak all common local languages. Never get lost. Acquire vehicles worth up to $5k, replace at $10k/week if lost.",
+          "effect_data": [
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "Survive",
+              "points": 1
+            },
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "Drive",
+              "points": 1
+            },
+            {
+              "type": "NO_GET_LOST"
+            },
+            {
+              "type": "FOCUS_BUDGET",
+              "category": "vehicle",
+              "base_amount": 5000,
+              "description": "Vehicle gear budget at level 1."
+            }
+          ]
+        },
+        {
+          "level": 2,
+          "summary": "Level 2: Once per scene, reroll a failed travel-related skill check (driving, navigating, negotiating passage).",
+          "effect_data": [
+            {
+              "type": "EPHEMERAL_POWER",
+              "name": "reroll_travel_check",
+              "frequency": "SCENE"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "model": "characters.focus",
+    "pk": 18,
+    "fields": {
+      "name": "Safe Haven",
+      "description": "You have a knack for finding or establishing hidden safehouses.",
+      "version": "1.0.0",
+      "category": "COMMON",
+      "source": "Cities Without Number",
+      "max_level": 2,
+      "multi_allowed": false,
+      "prerequisites": {},
+      "usage_notes": "",
+      "levels": [
+        {
+          "level": 1,
+          "summary": "Level 1: Gain Sneak. You can arrange a secure safehouse in a neighborhood after a week. It’s invisible to pursuit unless you blow its cover.",
+          "effect_data": [
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "Sneak",
+              "points": 1
+            },
+            {
+              "type": "SAFEHOUSE_SETUP"
+            }
+          ]
+        },
+        {
+          "level": 2,
+          "summary": "Level 2: Safehouses come with local defenders (gang, complicit cops, etc.) who’ll protect you from most threats. You can gear them with a tech workshop or level-1 cyberclinic.",
+          "effect_data": [
+            {
+              "type": "UPGRADE_SAFEHOUSE_DEFENSE"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "model": "characters.focus",
+    "pk": 19,
+    "fields": {
+      "name": "Shocking Assault",
+      "description": "Your melee strikes create unstoppable waves of harm around you.",
+      "version": "1.0.0",
+      "category": "COMMON",
+      "source": "Cities Without Number",
+      "max_level": 2,
+      "multi_allowed": false,
+      "prerequisites": {},
+      "usage_notes": "Boosts your Shock damage with melee weapons.",
+      "levels": [
+        {
+          "level": 1,
+          "summary": "Level 1: Gain Punch or Stab. Your melee Shock applies vs. AC 10 (assuming the target is not immune).",
+          "effect_data": [
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "Punch_or_Stab",
+              "points": 1
+            },
+            {
+              "type": "SHOCK_AC_BYPASS",
+              "value": 10
+            }
+          ]
+        },
+        {
+          "level": 2,
+          "summary": "Level 2: Your melee (or unarmed) attacks gain +2 Shock. A successful hit never does less than that Shock value.",
+          "effect_data": [
+            {
+              "type": "SHOCK_BONUS",
+              "amount": 2
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "model": "characters.focus",
+    "pk": 20,
+    "fields": {
+      "name": "Sniper’s Eye",
+      "description": "You excel at ranged Execution Attacks.",
+      "version": "1.0.0",
+      "category": "COMMON",
+      "source": "Cities Without Number",
+      "max_level": 2,
+      "multi_allowed": false,
+      "prerequisites": {},
+      "usage_notes": "Applies specifically to Execution Attacks with guns, bows, or thrown weapons.",
+      "levels": [
+        {
+          "level": 1,
+          "summary": "Level 1: Gain Shoot. When making an Execution Attack or target shooting, roll 3d6 drop the lowest die.",
+          "effect_data": [
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "Shoot",
+              "points": 1
+            },
+            {
+              "type": "SKILL_ROLL_BONUS",
+              "method": "3d6_drop_lowest",
+              "applies_to": "execution_attack"
+            }
+          ]
+        },
+        {
+          "level": 2,
+          "summary": "Level 2: You do not miss with ranged Execution Attacks. The target takes a -4 penalty to their Physical save or suffers doubled damage if they pass anyway.",
+          "effect_data": [
+            {
+              "type": "NO_MISS_EXECUTION"
+            },
+            {
+              "type": "SAVE_PENALTY",
+              "amount": -4,
+              "save_type": "physical"
+            },
+            {
+              "type": "DAMAGE_MULTIPLIER",
+              "value": 2,
+              "condition": "execution_save_success"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "model": "characters.focus",
+    "pk": 21,
+    "fields": {
+      "name": "Specialist",
+      "description": "You are remarkably talented at one particular non-combat skill.",
+      "version": "1.0.0",
+      "category": "COMMON",
+      "source": "Cities Without Number",
+      "max_level": 2,
+      "multi_allowed": true,
+      "prerequisites": {},
+      "usage_notes": "If taken multiple times, each instance must apply to a different skill.",
+      "levels": [
+        {
+          "level": 1,
+          "summary": "Level 1: Pick a non-combat skill, gain it at level-0 if you don’t have it, or raise it by 1 if you do (up to 1). You roll 3d6 drop lowest for checks.",
+          "effect_data": [
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "ANY_NONCOMBAT",
+              "points": 1
+            },
+            {
+              "type": "SKILL_ROLL_BONUS",
+              "method": "3d6_drop_lowest"
+            }
+          ]
+        },
+        {
+          "level": 2,
+          "summary": "Level 2: You roll 4d6 drop the two lowest on checks with that skill. (Skill level can be 1 now, but not more than 1 at creation.)",
+          "effect_data": [
+            {
+              "type": "SKILL_ROLL_BONUS",
+              "method": "4d6_drop_two_lowest"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "model": "characters.focus",
+    "pk": 22,
+    "fields": {
+      "name": "Tinker",
+      "description": "You’re adept at building and modifying gear or cyberware.",
+      "version": "1.0.0",
+      "category": "COMMON",
+      "source": "Cities Without Number",
+      "max_level": 2,
+      "multi_allowed": false,
+      "prerequisites": {},
+      "usage_notes": "",
+      "levels": [
+        {
+          "level": 1,
+          "summary": "Level 1: Gain Fix. Your Maintenance score is doubled, and normal mod costs in $ are halved (special components still needed).",
+          "effect_data": [
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "Fix",
+              "points": 1
+            },
+            {
+              "type": "MAINTENANCE_SCORE_MULT",
+              "amount": 2
+            },
+            {
+              "type": "MOD_COST_REDUCTION",
+              "percentage": 50
+            }
+          ]
+        },
+        {
+          "level": 2,
+          "summary": "Level 2: Your Fix is treated 1 level higher for mod building/maintenance (max Fix-5). Advanced mods require one fewer special component (min zero).",
+          "effect_data": [
+            {
+              "type": "FIX_SKILL_BOOST",
+              "amount": 1,
+              "max_effective_skill": 5
+            },
+            {
+              "type": "MOD_COMPONENT_REDUCTION",
+              "amount": 1
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "model": "characters.focus",
+    "pk": 23,
+    "fields": {
+      "name": "Unarmed Combatant",
+      "description": "Your empty hands are lethal weapons.",
+      "version": "1.0.0",
+      "category": "COMMON",
+      "source": "Cities Without Number",
+      "max_level": 2,
+      "multi_allowed": false,
+      "prerequisites": {},
+      "usage_notes": "",
+      "levels": [
+        {
+          "level": 1,
+          "summary": "Level 1: Gain Punch. Your unarmed damage scales with Punch skill, and can do lethal damage with a 1d6 x2 Trauma. If Punch≥1, you get Shock vs. AC15.",
+          "effect_data": [
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "Punch",
+              "points": 1
+            },
+            {
+              "type": "SCALE_UNARMED_DAMAGE",
+              "formula": "punch_skill_progression"
+            },
+            {
+              "type": "UNARMED_TRAUMA",
+              "die": "1d6",
+              "rating": 2
+            }
+          ]
+        },
+        {
+          "level": 2,
+          "summary": "Level 2: Even on a miss, you deal 1d6 damage plus any Shock. Your lethal Trauma Die becomes 1d8.",
+          "effect_data": [
+            {
+              "type": "MISS_DAMAGE",
+              "amount": "1d6"
+            },
+            {
+              "type": "UNARMED_TRAUMA",
+              "die": "1d8",
+              "rating": 2
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "model": "characters.focus",
+    "pk": 24,
+    "fields": {
+      "name": "Unique Gift",
+      "description": "A singular cyber system or innate ability that no normal gear can match.",
+      "version": "1.0.0",
+      "category": "COMMON",
+      "source": "Cities Without Number",
+      "max_level": 1,
+      "multi_allowed": false,
+      "prerequisites": {},
+      "usage_notes": "Represents a special trait or item. Must be GM-approved. Shouldn’t be a trivial bonus.",
+      "levels": [
+        {
+          "level": 1,
+          "summary": "Pick a unique advantage that cannot be replicated by normal equipment. The GM decides if it’s balanced or requires System Strain.",
+          "effect_data": [
+            {
+              "type": "CUSTOM_POWER",
+              "description": "Player and GM define the specifics of this singular ability."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "model": "characters.focus",
+    "pk": 25,
+    "fields": {
+      "name": "Unregistered",
+      "description": "You simply do not exist in government or corporate records.",
+      "version": "1.0.0",
+      "category": "COMMON",
+      "source": "Cities Without Number",
+      "max_level": 1,
+      "multi_allowed": false,
+      "prerequisites": {},
+      "usage_notes": "Difficult to own formal property or bank accounts, but you vanish from digital records.",
+      "levels": [
+        {
+          "level": 1,
+          "summary": "No official records link to you. Computer systems can’t reliably keep track. You can’t maintain a normal bank account or ID.",
+          "effect_data": [
+            {
+              "type": "NO_CORP_RECORDS"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "model": "characters.focus",
+    "pk": 26,
+    "fields": {
+      "name": "Whirlwind Assault",
+      "description": "A dervish of deadly melee fury, hacking through groups of foes.",
+      "version": "1.0.0",
+      "category": "COMMON",
+      "source": "Cities Without Number",
+      "max_level": 2,
+      "multi_allowed": false,
+      "prerequisites": {},
+      "usage_notes": "",
+      "levels": [
+        {
+          "level": 1,
+          "summary": "Level 1: Gain Stab or Punch. Once per scene, as an On Turn action, apply your Shock damage to all foes in melee range.",
+          "effect_data": [
+            {
+              "type": "GRANT_SKILL",
+              "skill_name": "Punch_or_Stab",
+              "points": 1
+            },
+            {
+              "type": "EPHEMERAL_POWER",
+              "name": "shock_aoe",
+              "frequency": "SCENE"
+            }
+          ]
+        },
+        {
+          "level": 2,
+          "summary": "Level 2: If you kill someone with a normal melee attack, you instantly gain a second attack in that round.",
+          "effect_data": [
+            {
+              "type": "BONUS_ATTACK_ON_KILL"
+            }
+          ]
+        }
+      ]
+    }
+  }
+]
+
+
 ----- .\server\characters\fixtures\initial_skills.json -----
 
 [
@@ -3850,86 +5634,168 @@ class EdgeViewSet(viewsets.ReadOnlyModelViewSet):
     }
 ]
 
+----- .\server\characters\services\foci.py -----
+
+# server/characters/services/foci.py
+
+from rest_framework import serializers
+from characters.models import Focus, CharacterFocus, CharacterSkill, Skill
+from characters.services.modifiers import apply_modifiers
+
+def apply_focus_selection(character, focus_selection):
+    """
+    Applies the chosen focus selection to the given character.
+    Expects focus_selection to be a dictionary with a "foci" key containing a list of objects:
+      { "id": <focus_id>, "rank": <chosen_rank>, "chosen_skill": <optional> }
+    """
+    # Clear any existing CharacterFocus entries for this character.
+    character.character_focuses.all().delete()
+
+    foci_list = focus_selection.get("foci", [])
+    if not foci_list:
+        raise serializers.ValidationError("No foci provided in focus_selection.")
+
+    # Initialize a log for any ephemeral focus effects (to be implemented later)
+    creation_data = character.creation_data or {}
+    focus_ephemeral = creation_data.get('focus_ephemeral', [])
+
+    for focus_item in foci_list:
+        focus_id = focus_item.get("id")
+        rank = focus_item.get("rank", 1)
+        chosen_skill = focus_item.get("chosen_skill")  # optional
+
+        try:
+            focus_obj = Focus.objects.get(id=focus_id)
+        except Focus.DoesNotExist:
+            raise serializers.ValidationError(f"Focus with id {focus_id} does not exist.")
+
+        # Validate the chosen rank does not exceed the focus's max_level.
+        if rank > focus_obj.max_level:
+            raise serializers.ValidationError(
+                f"Focus '{focus_obj.name}' cannot be taken at rank {rank} (max level: {focus_obj.max_level})."
+            )
+
+        # Create the pivot record in CharacterFocus.
+        CharacterFocus.objects.create(
+            character=character,
+            focus=focus_obj,
+            rank=rank,
+            chosen_skill=chosen_skill
+        )
+
+        # Process immediate effects from the focus's levels.
+        levels_data = focus_obj.levels or []
+        for level_entry in levels_data:
+            if level_entry.get("level", 0) <= rank:
+                for effect in level_entry.get("effect_data", []):
+                    effect_type = effect.get("type")
+                    if effect_type == "GRANT_SKILL":
+                        # Retrieve the skill and grant bonus, but cap at level 1 during creation.
+                        skill_name = effect.get("skill_name")
+                        bonus_points = effect.get("points", 0)
+                        try:
+                            skill_obj = Skill.objects.get(name__iexact=skill_name)
+                        except Skill.DoesNotExist:
+                            continue
+                        cs = CharacterSkill.objects.filter(character=character, skill=skill_obj).first()
+                        if cs is None:
+                            level = 1 if bonus_points >= 1 else 0
+                            CharacterSkill.objects.create(character=character, skill=skill_obj, level=level)
+                        else:
+                            if cs.level < 1 and bonus_points >= 1:
+                                cs.level = 1
+                                cs.save()
+                    elif effect_type == "ATTRIBUTE_MOD":
+                        # Apply attribute modification and cap at 18.
+                        attribute = effect.get("attribute", "").upper()
+                        amount = effect.get("amount", 0)
+                        if attribute == "STRENGTH":
+                            character.vitals.strength = min(character.vitals.strength + amount, 18)
+                        elif attribute == "DEXTERITY":
+                            character.vitals.dexterity = min(character.vitals.dexterity + amount, 18)
+                        elif attribute == "CONSTITUTION":
+                            character.vitals.constitution = min(character.vitals.constitution + amount, 18)
+                        elif attribute == "INTELLIGENCE":
+                            character.vitals.intelligence = min(character.vitals.intelligence + amount, 18)
+                        elif attribute == "WISDOM":
+                            character.vitals.wisdom = min(character.vitals.wisdom + amount, 18)
+                        elif attribute == "CHARISMA":
+                            character.vitals.charisma = min(character.vitals.charisma + amount, 18)
+                    else:
+                        # For unimplemented or ephemeral effects, log them for future processing.
+                        focus_ephemeral.append(effect)
+    creation_data['focus_ephemeral'] = focus_ephemeral
+    character.creation_data = creation_data
+    character.save()
+
+
 ----- .\server\characters\services\modifiers.py -----
 
 # server/characters/services/modifiers.py
 
+from rest_framework import serializers
 from characters.models import CharacterSkill, Skill
-
 
 def apply_modifiers(character, modifiers):
     """
     Applies the given modifiers to the character.
-    Per your instructions and the SRD:
     - No skill should exceed level-1 during character creation.
-    - Attributes should be capped at 18.
-    - 'ANY', 'PHYSICAL', or 'MENTAL' attribute bonuses are assigned on the front end,
-      so we skip direct changes here unless there's a single specific attribute.
+    - Attributes are capped at 18.
+    - 'ANY', 'PHYSICAL', or 'MENTAL' attribute bonuses are handled on the front end,
+      unless a specific attribute is given.
     """
-
     for mod in modifiers:
         if mod['modifier_type'] == 'ATTRIBUTE':
             category = mod.get('category', '').upper()
             points = mod.get('points', 0)
 
-            # If the category is a generic 'ANY', 'PHYSICAL', or 'MENTAL',
-            # we do nothing, because the front end’s bonus_distribution
-            # approach handles assigning it to a specific attribute.
-            # But if the category is an actual single attribute like 'STRENGTH',
-            # we can do something like this:
-            #
-            # if category == 'STRENGTH':
-            #     current_val = character.strength
-            #     new_val = min(current_val + points, 18)
-            #     character.strength = new_val
-            #
-            # (And similarly for DEXTERITY, etc.)
-            # For now, we'll just skip it unless you implement that logic:
             if category not in ['ANY', 'PHYSICAL', 'MENTAL']:
-                # Example: a single specific attribute category
                 if category == 'STRENGTH':
-                    new_val = min(character.strength + points, 18)
-                    character.strength = new_val
+                    new_val = min(character.vitals.strength + points, 18)
+                    character.vitals.strength = new_val
                 elif category == 'DEXTERITY':
-                    new_val = min(character.dexterity + points, 18)
-                    character.dexterity = new_val
-                # etc. for other attributes if you want
-            # Otherwise, do nothing.
+                    new_val = min(character.vitals.dexterity + points, 18)
+                    character.vitals.dexterity = new_val
+                # ... Repeat for other attributes if desired
 
         elif mod['modifier_type'] == 'SKILL':
             skill_name = mod.get('skill_name')
             if not skill_name:
-                continue  # or raise an error if skill_name is missing
-
+                continue
             try:
                 skill_obj = Skill.objects.get(name__iexact=skill_name)
             except Skill.DoesNotExist:
-                # If the skill doesn't exist, skip or raise an error
                 continue
 
-            # The base "points" we’re awarding
             bonus_points = mod.get('points', 0)
-
             cs = CharacterSkill.objects.filter(character=character, skill=skill_obj).first()
+
             if cs is None:
-                # If we had never picked this skill at all, create a new record.
-                # Typically, picking a skill once sets it to level-0, picking it twice sets to level-1,
-                # so awarding 1 "point" might be enough to make it level-0 or level-1.
-                if bonus_points == 1:
-                    # That’s typically level-0 on the first pick
-                    initial_level = 0
-                else:
-                    # if bonus_points >= 2, that might be enough to push it to level-1
-                    initial_level = 1
-                # But because you never exceed level-1 in creation:
-                initial_level = min(initial_level, 1)
-                CharacterSkill.objects.create(character=character, skill=skill_obj, level=initial_level)
+                # If awarding 1 point -> level-0, else -> level-1, but never exceed 1
+                initial_level = 0 if bonus_points == 1 else 1
+                CharacterSkill.objects.create(
+                    character=character, skill=skill_obj,
+                    level=min(initial_level, 1)
+                )
             else:
-                # If we already have the skill at level-0, awarding it again sets it to level-1,
-                # but never above 1 at creation time.
-                # (If you want to allow level-2 after creation, that’s a separate pipeline.)
+                # Already have this skill
+                if cs.level >= 1 and bonus_points >= 1:
+                    # ---------------------------------------------
+                    # OPTION 5: Instead of raising an error, skip it:
+                    # ---------------------------------------------
+                    # Simply ignore awarding more points to a level-1 skill.
+                    # If you prefer to throw an error, uncomment:
+                    #
+                    # raise serializers.ValidationError(
+                    #     f"Skill '{skill_obj.name}' is already level-1. Choose another skill."
+                    # )
+                    #
+                    # If skipping, do nothing:
+                    continue
+
+                # If skill was level-0, awarding 1+ point sets it to 1
                 if cs.level == 0 and bonus_points >= 1:
-                    cs.level = min(1, cs.level + 1)  # ensure it caps at level-1
+                    cs.level = 1
                     cs.save()
 
     character.save()
@@ -4205,8 +6071,8 @@ CORS_ALLOW_CREDENTIALS = True
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework import routers
-from characters.views import CharacterViewSet, SkillViewSet, BackgroundViewSet, EdgeViewSet
-from users.views import UserRegistrationView, user_roles  # <-- Import from users app
+from characters.views import CharacterViewSet, SkillViewSet, BackgroundViewSet, EdgeViewSet, FocusViewSet
+from users.views import UserRegistrationView, user_roles
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
@@ -4218,16 +6084,17 @@ router.register(r'characters', CharacterViewSet, basename='characters')
 router.register(r'skills', SkillViewSet, basename='skills')
 router.register(r'backgrounds', BackgroundViewSet, basename='backgrounds')
 router.register(r'edges', EdgeViewSet, basename='edges')
-
+router.register(r'foci', FocusViewSet, basename='foci')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include(router.urls)),
-    path('api/register/', UserRegistrationView.as_view(), name='register'),  # <-- Comma added here
+    path('api/register/', UserRegistrationView.as_view(), name='register'),
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/user_roles/', user_roles, name='user_roles'),
 ]
+
 
 
 ----- .\server\venture\wsgi.py -----

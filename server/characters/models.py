@@ -1,7 +1,28 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.db.models import JSONField
+from django.utils import timezone
 
+
+FREQUENCY_CHOICES = [
+    ('SCENE', 'Per Scene'),
+    ('ROUND', 'Per Round'),
+    ('DAY', 'Per Day'),
+    ('SESSION', 'Per Session'),
+]
+
+class AbilityUsage(models.Model):
+    character = models.ForeignKey('Character', on_delete=models.CASCADE, related_name='ability_usages')
+    ability_identifier = models.CharField(
+        max_length=255,
+        help_text="Identifier for the ability (e.g. 'Edge: Ghost' or 'Focus: Reroll Sneak')"
+    )
+    frequency = models.CharField(max_length=20, choices=FREQUENCY_CHOICES)
+    usage_count = models.IntegerField(default=0)
+    last_used = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.character.name} - {self.ability_identifier} usage"
 
 class Background(models.Model):
     name = models.CharField(max_length=100, unique=True)
@@ -75,13 +96,14 @@ class Character(models.Model):
     name = models.CharField(max_length=100)
     goal = models.CharField(max_length=255, blank=True)
 
-    # Basic Attributes
-    strength = models.PositiveIntegerField(default=10)
-    dexterity = models.PositiveIntegerField(default=10)
-    constitution = models.PositiveIntegerField(default=10)
-    intelligence = models.PositiveIntegerField(default=10)
-    wisdom = models.PositiveIntegerField(default=10)
-    charisma = models.PositiveIntegerField(default=10)
+    # These attributes will be moved to the CharacterVitals model.
+    # Comment them out for now to avoid duplication:
+    # strength = models.PositiveIntegerField(default=10)
+    # dexterity = models.PositiveIntegerField(default=10)
+    # constitution = models.PositiveIntegerField(default=10)
+    # intelligence = models.PositiveIntegerField(default=10)
+    # wisdom = models.PositiveIntegerField(default=10)
+    # charisma = models.PositiveIntegerField(default=10)
 
     # Flag to determine if character creation is complete.
     is_complete = models.BooleanField(default=False)
@@ -104,6 +126,38 @@ class Character(models.Model):
     def contact_list(self):
         return self.contacts.all()
 
+
+class CharacterVitals(models.Model):
+    character = models.OneToOneField(Character, on_delete=models.CASCADE, related_name='vitals')
+
+    # Universal Stats
+    current_hp = models.PositiveIntegerField(default=0)
+    max_hp = models.PositiveIntegerField(default=0)
+    attack_bonus_base = models.IntegerField(default=0)
+    base_ac = models.IntegerField(default=0)
+    save_physical = models.IntegerField(default=0)
+    save_evasion = models.IntegerField(default=0)
+    save_mental = models.IntegerField(default=0)
+    save_luck = models.IntegerField(default=0)
+    is_frail = models.BooleanField(default=False)
+    is_mortally_wounded = models.BooleanField(default=False)
+
+    # Moved Attributes (for easier modification later)
+    strength = models.PositiveIntegerField(default=10)
+    dexterity = models.PositiveIntegerField(default=10)
+    constitution = models.PositiveIntegerField(default=10)
+    intelligence = models.PositiveIntegerField(default=10)
+    wisdom = models.PositiveIntegerField(default=10)
+    charisma = models.PositiveIntegerField(default=10)
+
+    # CWn-Specific Fields
+    system_strain_current = models.IntegerField(default=0)
+    system_strain_max = models.IntegerField(default=0)
+    trauma_target = models.IntegerField(default=6)
+    major_injuries = JSONField(blank=True, null=True)
+
+    def __str__(self):
+        return f"{self.character.name}'s Vitals"
 
 class CharacterSkill(models.Model):
     character = models.ForeignKey(Character, on_delete=models.CASCADE)

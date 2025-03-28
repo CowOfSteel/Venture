@@ -1,11 +1,40 @@
 from rest_framework import viewsets, permissions, serializers
 from rest_framework.response import Response
-from .models import Character, Background, Skill, CharacterSkill, Contact, Edge, CharacterEdge, Focus, CharacterFocus
-from .serializers import CharacterSerializer,BackgroundSerializer,SkillSerializer, ContactSerializer, EdgeSerializer, FocusSerializer
+from .models import Character, Background, Skill, CharacterSkill, Contact, Edge, CharacterEdge, Focus, CharacterFocus, AbilityUsage
+from .serializers import CharacterSerializer,BackgroundSerializer,SkillSerializer, ContactSerializer, EdgeSerializer, FocusSerializer, AbilityUsageSerializer
 from .services.modifiers import apply_modifiers
 from .services.foci import apply_focus_selection
+from django.utils import timezone
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.decorators import action
 
+class AbilityUsageViewSet(viewsets.ModelViewSet):
+    queryset = AbilityUsage.objects.all()
+    serializer_class = AbilityUsageSerializer
+    permission_classes = [IsAuthenticated]
 
+    def get_queryset(self):
+        # Filter to only include usages for characters belonging to the current user.
+        user = self.request.user
+        return AbilityUsage.objects.filter(character__user=user)
+
+    @action(detail=True, methods=['patch'])
+    def toggle(self, request, pk=None):
+        """
+        Toggle the usage state for an ability:
+         - If not used (usage_count == 0), mark it as used (set usage_count to 1 and update last_used).
+         - If already used, reset it (set usage_count to 0 and clear last_used).
+        """
+        usage = self.get_object()
+        if usage.usage_count == 0:
+            usage.usage_count = 1
+            usage.last_used = timezone.now()
+        else:
+            usage.usage_count = 0
+            usage.last_used = None
+        usage.save()
+        serializer = self.get_serializer(usage)
+        return Response(serializer.data)
 
 def apply_focus_selection(character, focus_selection):
     """
@@ -80,17 +109,17 @@ def apply_focus_selection(character, focus_selection):
                         attribute = effect.get("attribute", "").upper()
                         amount = effect.get("amount", 0)
                         if attribute == "STRENGTH":
-                            character.strength = min(character.strength + amount, 18)
+                            character.vitals.strength = min(character.vitals.strength + amount, 18)
                         elif attribute == "DEXTERITY":
-                            character.dexterity = min(character.dexterity + amount, 18)
+                            character.vitals.dexterity = min(character.vitals.dexterity + amount, 18)
                         elif attribute == "CONSTITUTION":
-                            character.constitution = min(character.constitution + amount, 18)
+                            character.vitals.constitution = min(character.vitals.constitution + amount, 18)
                         elif attribute == "INTELLIGENCE":
-                            character.intelligence = min(character.intelligence + amount, 18)
+                            character.vitals.intelligence = min(character.vitals.intelligence + amount, 18)
                         elif attribute == "WISDOM":
-                            character.wisdom = min(character.wisdom + amount, 18)
+                            character.vitals.wisdom = min(character.vitals.wisdom + amount, 18)
                         elif attribute == "CHARISMA":
-                            character.charisma = min(character.charisma + amount, 18)
+                            character.vitals.charisma = min(character.vitals.charisma + amount, 18)
                         # For generic categories (ANY, PHYSICAL, MENTAL) we assume the front end handles them.
                     else:
                         # For EPHEMERAL_POWER, FOCUS_BUDGET, or any unimplemented effects,

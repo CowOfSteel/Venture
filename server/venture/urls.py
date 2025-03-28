@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework import routers
-from characters.views import CharacterViewSet, SkillViewSet, BackgroundViewSet, EdgeViewSet, FocusViewSet
+from characters.views import CharacterViewSet, SkillViewSet, BackgroundViewSet, EdgeViewSet, FocusViewSet, AbilityUsageViewSet
 from users.views import UserRegistrationView, user_roles
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
@@ -15,6 +15,7 @@ router.register(r'skills', SkillViewSet, basename='skills')
 router.register(r'backgrounds', BackgroundViewSet, basename='backgrounds')
 router.register(r'edges', EdgeViewSet, basename='edges')
 router.register(r'foci', FocusViewSet, basename='foci')
+router.register(r'ability-usage', AbilityUsageViewSet, basename='ability-usage')
 
 urlpatterns = [
     path('admin/', admin.site.urls),

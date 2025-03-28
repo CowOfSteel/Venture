@@ -72,17 +72,17 @@ def apply_focus_selection(character, focus_selection):
                         attribute = effect.get("attribute", "").upper()
                         amount = effect.get("amount", 0)
                         if attribute == "STRENGTH":
-                            character.strength = min(character.strength + amount, 18)
+                            character.vitals.strength = min(character.vitals.strength + amount, 18)
                         elif attribute == "DEXTERITY":
-                            character.dexterity = min(character.dexterity + amount, 18)
+                            character.vitals.dexterity = min(character.vitals.dexterity + amount, 18)
                         elif attribute == "CONSTITUTION":
-                            character.constitution = min(character.constitution + amount, 18)
+                            character.vitals.constitution = min(character.vitals.constitution + amount, 18)
                         elif attribute == "INTELLIGENCE":
-                            character.intelligence = min(character.intelligence + amount, 18)
+                            character.vitals.intelligence = min(character.vitals.intelligence + amount, 18)
                         elif attribute == "WISDOM":
-                            character.wisdom = min(character.wisdom + amount, 18)
+                            character.vitals.wisdom = min(character.vitals.wisdom + amount, 18)
                         elif attribute == "CHARISMA":
-                            character.charisma = min(character.charisma + amount, 18)
+                            character.vitals.charisma = min(character.vitals.charisma + amount, 18)
                     else:
                         # For unimplemented or ephemeral effects, log them for future processing.
                         focus_ephemeral.append(effect)
